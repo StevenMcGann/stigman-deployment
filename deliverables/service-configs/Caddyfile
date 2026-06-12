@@ -1,0 +1,25 @@
+YOUR_SERVER_IP, localhost {
+	tls internal
+
+	# Keycloak paths (OIDC and login page resources only)
+	handle /realms/* {
+		reverse_proxy localhost:8080
+	}
+	handle /resources/* {
+		reverse_proxy localhost:8080
+	}
+
+	# Everything else goes to STIG Manager
+	# API routes: disable caching (prevents 304 issues with ExtJS)
+	handle /api/* {
+		header Cache-Control "no-store"
+		reverse_proxy localhost:54000 {
+			flush_interval -1
+		}
+	}
+
+	# Static assets and web UI
+	handle {
+		reverse_proxy localhost:54000
+	}
+}

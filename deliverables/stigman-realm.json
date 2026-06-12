@@ -1,0 +1,239 @@
+{
+  "realm": "stigman",
+  "enabled": true,
+  "displayName": "STIG Manager",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "requiredActions": [],
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "STIG Manager Administrator"
+      },
+      {
+        "name": "create_collection",
+        "description": "Can create new STIG Manager Collections"
+      },
+      {
+        "name": "user",
+        "description": "Standard STIG Manager user"
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "openid",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
+    },
+    {
+      "name": "stig-manager:stig",
+      "description": "STIG management scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "stig-manager:stig:read",
+      "description": "Read STIG data",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "stig-manager:stig:write",
+      "description": "Write STIG data",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "stig-manager:collection",
+      "description": "Manage collections",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "stig-manager:op",
+      "description": "Operational scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "stig-manager:user",
+      "description": "User management scope",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "stig-manager:user:read",
+      "description": "Read user data",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "stig-manager",
+      "name": "STIG Manager",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "openid",
+        "stig-manager:stig",
+        "stig-manager:stig:read",
+        "stig-manager:stig:write",
+        "stig-manager:collection",
+        "stig-manager:op",
+        "stig-manager:user",
+        "stig-manager:user:read"
+      ],
+      "protocolMappers": [
+        {
+          "name": "preferred_username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "stigman-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "stigman-watcher",
+      "name": "STIG Manager Watcher",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "changeme",
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "openid",
+        "stig-manager:stig",
+        "stig-manager:stig:read",
+        "stig-manager:stig:write",
+        "stig-manager:collection",
+        "stig-manager:op",
+        "stig-manager:user",
+        "stig-manager:user:read"
+      ],
+      "protocolMappers": [
+        {
+          "name": "preferred_username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "stigman-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "stigman-admin",
+      "enabled": true,
+      "email": "admin@stigman.local",
+      "firstName": "STIG",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "STIGman_Admin_2026!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin", "create_collection", "user"]
+    },
+    {
+      "username": "stigman-user",
+      "enabled": true,
+      "email": "user@stigman.local",
+      "firstName": "STIG",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "STIGman_User_2026!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["create_collection", "user"]
+    }
+  ]
+}

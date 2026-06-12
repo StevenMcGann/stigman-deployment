@@ -1,0 +1,45 @@
+# Large installer files (download fresh per install guide)
+*.msi
+*.exe
+*.zip
+
+# Working/temp directories from DOCX editing
+unpacked/
+deploy-plan-unpacked/
+howto-unpacked/
+prodguide-unpacked/
+memory/
+screenshots/
+
+# Local-only tooling (personal notification scripts, Claude Code settings)
+notify/
+.claude/
+
+# Node dependencies for the document build scripts
+node_modules/
+package.json
+package-lock.json
+
+# Log files from installation
+*.log
+
+# Old/superseded document versions at project root
+/STIG-Manager-Installation-Guide-updated.docx
+/STIG-Manager-Installation-Guide.docx
+/stigman-deployment-plan-updated.docx
+/stigman-deployment-plan.docx
+/stigman_deployment_package.zip
+
+# Word temp files
+~$*.docx
+
+# Obsolete scripts at project root
+/create-howto.ps1
+/mysql-setup.ps1
+/set-java-home.ps1
+/register-services.cmd
+/deploy-plan-text.txt
+/deploy-plan.zip
+/howto-text.txt
+/howto.zip
+/stigman-realm-export.json

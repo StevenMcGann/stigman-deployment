@@ -1,0 +1,17 @@
+<service>
+  <id>STIGManagerWatcher</id>
+  <name>STIG Manager Watcher</name>
+  <description>STIG Manager Watcher - monitors directories for STIG assessment files and auto-uploads to STIG Manager</description>
+  <executable>%BASE%\stigman-watcher-win.exe</executable>
+  <arguments>--mode scan --retry-count 24 --retry-interval 5000</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <depend>STIGManager</depend>
+  <depend>Keycloak</depend>
+  <depend>MySQL84</depend>
+</service>

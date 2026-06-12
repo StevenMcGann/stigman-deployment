@@ -1,0 +1,1578 @@
+<!-- Generated from build-install-guide.js — do not edit directly. Regenerate with: node build-markdown-guide.js -->
+
+# STIG Manager OSS — Installation & Production Transition Guide
+
+*Step-by-Step Deployment and Hardening Instructions*  
+
+*Version 1.6.12  —  June 2026*  
+
+## Table of Contents
+
+- [1. Prerequisites and Software Downloads](#1-prerequisites-and-software-downloads)
+  - [Required Software](#required-software)
+  - [Server Requirements](#server-requirements)
+  - [Prepare the Working Directory](#prepare-the-working-directory)
+  - [Directory Structure](#directory-structure)
+  - [Open the Firewall](#open-the-firewall)
+- [2. Install MySQL 8.4](#2-install-mysql-84)
+  - [Step 2.1: Run the MySQL Installer](#step-21-run-the-mysql-installer)
+  - [Step 2.2: Initialize the Database](#step-22-initialize-the-database)
+  - [Step 2.3: Create Databases and Users](#step-23-create-databases-and-users)
+- [3. Install Microsoft OpenJDK 17](#3-install-microsoft-openjdk-17)
+- [4. Install and Configure Keycloak](#4-install-and-configure-keycloak)
+  - [Step 4.1: Extract Keycloak](#step-41-extract-keycloak)
+  - [Step 4.2: Configure Keycloak](#step-42-configure-keycloak)
+  - [Step 4.3: Create the Keycloak Admin Account](#step-43-create-the-keycloak-admin-account)
+  - [Step 4.4: Import the STIG Manager Realm](#step-44-import-the-stig-manager-realm)
+- [5. Install and Configure STIG Manager](#5-install-and-configure-stig-manager)
+  - [Step 5.1: Extract STIG Manager](#step-51-extract-stig-manager)
+  - [Step 5.2: Set Up WinSW Service Wrapper](#step-52-set-up-winsw-service-wrapper)
+  - [Step 5.3: Create the STIG Manager Service Configuration](#step-53-create-the-stig-manager-service-configuration)
+- [6. Install and Configure Caddy (Reverse Proxy)](#6-install-and-configure-caddy-reverse-proxy)
+  - [Step 6.1: Set Up Caddy](#step-61-set-up-caddy)
+  - [Step 6.2: Create the Caddyfile](#step-62-create-the-caddyfile)
+- [7. Register Windows Services](#7-register-windows-services)
+  - [Step 7.1: Build Keycloak for Production Mode](#step-71-build-keycloak-for-production-mode)
+  - [Step 7.2: Create the Keycloak Service Configuration](#step-72-create-the-keycloak-service-configuration)
+  - [Step 7.3: Register All Services](#step-73-register-all-services)
+  - [Step 7.4: Start Services](#step-74-start-services)
+  - [Step 7.5: Verify Service Dependencies](#step-75-verify-service-dependencies)
+- [8. Verify the Installation](#8-verify-the-installation)
+  - [Step 8.1: Check All Services Are Running](#step-81-check-all-services-are-running)
+  - [Step 8.2: Verify the API](#step-82-verify-the-api)
+  - [Step 8.3: Access STIG Manager](#step-83-access-stig-manager)
+- [9. Troubleshooting](#9-troubleshooting)
+  - [MySQL service won’t start](#mysql-service-wont-start)
+  - [‘java’ is not recognized](#java-is-not-recognized)
+  - [Keycloak fails to start as a service](#keycloak-fails-to-start-as-a-service)
+  - [STIG Manager shows ‘Missing username claim’](#stig-manager-shows-missing-username-claim)
+  - [Browser shows ‘Invalid scopes’ error](#browser-shows-invalid-scopes-error)
+  - [Keycloak redirects to HTTPS but page doesn’t load](#keycloak-redirects-to-https-but-page-doesnt-load)
+  - [ERR_SSL_PROTOCOL_ERROR from network clients](#err_ssl_protocol_error-from-network-clients)
+  - [ServiceWorker registration fails (code 18) from network clients](#serviceworker-registration-fails-code-18-from-network-clients)
+  - [STIG Manager can’t connect to Keycloak](#stig-manager-cant-connect-to-keycloak)
+- [10. STIG Manager Watcher (Optional)](#10-stig-manager-watcher-optional)
+  - [Step 10.1: Extract Watcher](#step-101-extract-watcher)
+  - [Step 10.2: Create the Keycloak Watcher Client](#step-102-create-the-keycloak-watcher-client)
+  - [Step 10.3: Grant Watcher Collection Access](#step-103-grant-watcher-collection-access)
+  - [Step 10.4: Configure the Watcher](#step-104-configure-the-watcher)
+  - [Step 10.5: Test the Watcher](#step-105-test-the-watcher)
+  - [Step 10.6: Register Watcher as a Windows Service](#step-106-register-watcher-as-a-windows-service)
+  - [Step 10.7: Using the Watcher](#step-107-using-the-watcher)
+  - [Step 10.8: Watching a Network Share (Optional)](#step-108-watching-a-network-share-optional)
+- [11. Configure Server Hostname](#11-configure-server-hostname)
+  - [Files to Update](#files-to-update)
+  - [Automated Method](#automated-method)
+  - [After Changing the Hostname](#after-changing-the-hostname)
+- [12. Install TLS Certificates](#12-install-tls-certificates)
+  - [Certificate Requirements](#certificate-requirements)
+  - [Converting PFX to PEM](#converting-pfx-to-pem)
+  - [Automated Installation](#automated-installation)
+  - [Manual Installation](#manual-installation)
+- [13. Active Directory / LDAP Integration](#13-active-directory-ldap-integration)
+  - [Prerequisites](#prerequisites)
+  - [Step 13.1: Add LDAP User Federation](#step-131-add-ldap-user-federation)
+  - [Step 13.2: Sync and Verify Users](#step-132-sync-and-verify-users)
+  - [Step 13.3: Assign STIG Manager Roles](#step-133-assign-stig-manager-roles)
+- [14. Change Default Passwords](#14-change-default-passwords)
+- [15. Production Checklist](#15-production-checklist)
+- [16. Applying Updates](#16-applying-updates)
+  - [Step 16.1: Review the Release Notes](#step-161-review-the-release-notes)
+  - [Step 16.2: Back Up the Database](#step-162-back-up-the-database)
+  - [Step 16.3: Download and Stage the New Binary](#step-163-download-and-stage-the-new-binary)
+  - [Step 16.4: Stop the Services](#step-164-stop-the-services)
+  - [Step 16.5: Replace the Binary](#step-165-replace-the-binary)
+  - [Step 16.6: Start the Service and Watch the Migration](#step-166-start-the-service-and-watch-the-migration)
+  - [Step 16.7: Verify and Restart the Watcher](#step-167-verify-and-restart-the-watcher)
+  - [Step 16.8: Rollback (If Needed)](#step-168-rollback-if-needed)
+  - [Step 16.9: Updating Keycloak](#step-169-updating-keycloak)
+- [Appendix C: Architecture](#appendix-c-architecture)
+- [Appendix A: Credentials Reference](#appendix-a-credentials-reference)
+- [Appendix B: Service Management Commands](#appendix-b-service-management-commands)
+
+## 1. Prerequisites and Software Downloads
+
+This guide walks you through installing STIG Manager OSS on a Windows Server. STIG Manager is a web application for managing DISA STIG assessments, replacing manual .ckl file management with a centralized platform.
+
+### Required Software
+
+Download all of the following before starting the installation:
+
+| Component | Version | Download | Purpose |
+|----|----|----|----|
+| MySQL Community Server | 8.4.9 (MSI) | dev.mysql.com/downloads/mysql | Database backend |
+| Microsoft OpenJDK | 17.0.19 (MSI) | learn.microsoft.com/java/openjdk | Java runtime for Keycloak |
+| Keycloak | 26.6.3 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
+| STIG Manager | 1.6.12 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
+| STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
+| Caddy Server | 2.11.4 (EXE) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
+| WinSW | 2.12.0 (EXE) | github.com/winsw/winsw/releases | Windows service wrapper |
+
+> **Note:** The versions listed are the baseline this guide was written and validated against. Newer patch releases generally work, but follow Section 16 (Applying Updates) when moving to a newer version.
+
+> **Note:** For STIG Manager and the Watcher, download the Windows standalone binary (stig-manager-win-x.x.x.zip / stigman-watcher-win-x.x.x.zip) from the GitHub Releases pages. For Caddy, download the Windows amd64 binary from the GitHub Releases page for the version above (the caddyserver.com download page only serves the newest build). For WinSW, download WinSW-x64.exe.
+
+### Server Requirements
+
+- Windows Server 2019 or 2022
+- At least 4 GB RAM (8 GB recommended)
+- At least 10 GB free disk space
+- Administrator access to the server
+- Port 443 (HTTPS) open for web access
+
+### Prepare the Working Directory
+
+Copy all downloaded installer files to a single working directory on the server. This guide assumes C:\Installers:
+
+```
+New-Item -ItemType Directory -Path C:\Installers -Force
+```
+
+Copy the following files into C:\Installers:
+
+- mysql-8.4.9-winx64.msi
+- microsoft-jdk-17.0.19-windows-x64.msi
+- keycloak-26.6.3.zip
+- stig-manager-win-1.6.12.zip
+- stigman-watcher-win-1.6.9.zip (optional, Section 10)
+- caddy_windows_amd64.exe (2.11.4)
+- WinSW-x64.exe
+- stigman-realm.json (provided with this guide)
+
+Also copy the service configuration files from the deliverables\service-configs folder:
+
+- Caddyfile
+- keycloak.conf
+- keycloak-svc.xml
+- stig-manager-svc.xml
+- stigman-watcher-svc.xml (optional, Section 10)
+
+> **Note:** The service config files are pre-built and ready to use. You will only need to update the server IP/hostname and database passwords to match your environment.
+
+### Directory Structure
+
+Create the services directory. All services will be installed under C:\Services:
+
+```
+New-Item -ItemType Directory -Path C:\Services -Force
+```
+
+After installation, the directory structure will be:
+
+```
+C:\Services\
+  keycloak-26.6.3\     Keycloak identity provider
+  stig-manager\        STIG Manager application
+  stigman-watcher\     STIG Manager Watcher (optional)
+  caddy\               Caddy reverse proxy
+```
+
+### Open the Firewall
+
+Open port 443 for HTTPS access from network clients:
+
+```
+New-NetFirewallRule -DisplayName 'STIG Manager HTTPS' -Direction Inbound -LocalPort 443 -Protocol TCP -Action Allow
+```
+
+> **Note:** If your organization uses Group Policy to manage firewall rules, this may need to be done through GPO instead.
+
+## 2. Install MySQL 8.4
+
+MySQL stores all STIG Manager data (assessments, collections, STIGs) and Keycloak user/session data.
+
+### Step 2.1: Run the MySQL Installer
+
+Run from an elevated PowerShell:
+
+```
+Start-Process msiexec.exe -ArgumentList '/i', 'C:\Installers\mysql-8.4.9-winx64.msi', '/quiet' -Wait
+```
+
+MySQL will be installed to C:\Program Files\MySQL\MySQL Server 8.4\
+
+### Step 2.2: Initialize the Database
+
+MySQL needs to be initialized before first use. This creates the data directory, system tables, and registers the Windows service.
+
+```
+cd 'C:\Program Files\MySQL\MySQL Server 8.4\bin'
+.\mysqld.exe --initialize-insecure --console
+.\mysqld.exe --install MySQL84
+Start-Service MySQL84
+```
+
+> **Note:** The --initialize-insecure flag creates a root account with no password. We will set a password in the next step. The service name MySQL84 is used throughout this guide and must match the service dependency names in the WinSW configuration files.
+
+### Step 2.3: Create Databases and Users
+
+Connect to MySQL and create the databases and service accounts:
+
+```
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root
+```
+
+Paste the following SQL commands. This guide uses the test passwords shown below. See Appendix A for all default credentials.
+
+> **Important:** Replace all passwords with strong, unique values before deploying to production.
+
+```
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'STIGman_Root_2026!';
+```
+
+```
+-- STIG Manager database and user
+CREATE DATABASE stigman CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'stigman'@'localhost' IDENTIFIED BY 'STIGman_DB_2026!';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX,
+  REFERENCES, CREATE VIEW, LOCK TABLES, CREATE ROUTINE, ALTER ROUTINE,
+  EXECUTE, EVENT, CREATE TEMPORARY TABLES ON stigman.* TO 'stigman'@'localhost';
+GRANT SELECT ON performance_schema.* TO 'stigman'@'localhost';
+```
+
+```
+-- Keycloak database and user
+CREATE DATABASE keycloak CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER 'keycloak'@'localhost' IDENTIFIED BY 'Keycloak_DB_2026!';
+GRANT ALL PRIVILEGES ON keycloak.* TO 'keycloak'@'localhost';
+```
+
+```
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+> **Note:** Record the passwords you chose. The stigman password is needed in Section 5 (stig-manager-svc.xml) and the keycloak password in Section 4 (keycloak.conf).
+
+## 3. Install Microsoft OpenJDK 17
+
+Keycloak requires Java 17 to run. Microsoft’s build of OpenJDK is recommended for Windows Server.
+
+1. Run the OpenJDK MSI installer:
+
+```
+Start-Process msiexec.exe -ArgumentList '/i', 'C:\Installers\microsoft-jdk-17.0.19-windows-x64.msi', '/quiet' -Wait
+```
+
+2. Set the JAVA_HOME environment variable:
+
+```
+[System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot', 'Machine')
+```
+
+3. Refresh your session and verify Java is accessible:
+
+```
+$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot'
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+java -version
+```
+
+You should see output showing OpenJDK 17.0.19.
+
+> **Note:** The SetEnvironmentVariable command persists JAVA_HOME permanently, but the current PowerShell session needs the two $env lines to pick it up immediately. New PowerShell windows will have it automatically.
+
+## 4. Install and Configure Keycloak
+
+Keycloak provides OpenID Connect (OIDC) authentication for STIG Manager. Users log in through Keycloak before accessing the application.
+
+### Step 4.1: Extract Keycloak
+
+Extract the Keycloak ZIP to C:\Services:
+
+```
+cd C:\Installers
+Expand-Archive keycloak-26.6.3.zip -DestinationPath C:\Services
+```
+
+This creates C:\Services\keycloak-26.6.3\
+
+### Step 4.2: Configure Keycloak
+
+You can either copy the pre-built `keycloak.conf` from the deliverables\service-configs folder, or create the file manually.
+
+**Option A:** Copy from deliverables (recommended):
+
+```
+Copy-Item C:\Installers\keycloak.conf C:\Services\keycloak-26.6.3\conf\keycloak.conf
+```
+
+**Option B:** Create manually. Edit C:\Services\keycloak-26.6.3\conf\keycloak.conf:
+
+```
+# Database
+db=mysql
+db-url-host=localhost
+db-url-database=keycloak
+db-username=keycloak
+db-password=Keycloak_DB_2026!
+```
+
+```
+# Hostname (frontend URL as seen by browsers through Caddy)
+hostname=https://YOUR_SERVER_IP
+hostname-backchannel-dynamic=true
+```
+
+```
+# HTTP settings (Caddy terminates TLS, Keycloak listens on HTTP)
+http-enabled=true
+http-port=8080
+proxy-headers=xforwarded
+```
+
+> **Important:** Replace Keycloak_DB_2026! with the Keycloak database password from Step 2.3. Replace YOUR_SERVER_IP with your server’s IP address or DNS hostname (e.g., 192.168.1.100 or stigman.yourdomain.mil).
+
+> **Note:** The hostname value must use https:// and match the address clients will use in their browser. This same value must also appear in the Caddyfile (Section 6) and stig-manager-svc.xml (Section 5).
+
+### Step 4.3: Create the Keycloak Admin Account
+
+Keycloak 26.x uses the bootstrap-admin CLI command to create the initial administrator account. This runs against the database directly and does not require Keycloak to be running.
+
+1. Set the admin password in an environment variable:
+
+```
+$env:KC_BOOTSTRAP_ADMIN_PASSWORD = 'Admin_KC_2026!'
+```
+
+2. Run the bootstrap-admin command:
+
+```
+cd C:\Services\keycloak-26.6.3
+.\bin\kc.bat bootstrap-admin user --username admin --password:env KC_BOOTSTRAP_ADMIN_PASSWORD
+```
+
+You should see "Created temporary admin user" in the output. Keycloak will briefly start and stop as part of this process.
+
+> **Note:** This admin account is for Keycloak administration only (realm management, user management). It is separate from the STIG Manager application users created in the next step. Replace Admin_KC_2026! with a strong password.
+
+### Step 4.4: Import the STIG Manager Realm
+
+The realm import creates the STIG Manager OIDC client, required scopes, protocol mappers, and test user accounts. Start Keycloak temporarily in development mode, import the realm, then stop it.
+
+1. Start Keycloak in development mode:
+
+```
+cd C:\Services\keycloak-26.6.3
+.\bin\kc.bat start-dev
+```
+
+Wait until you see "Keycloak started" in the console output (about 30–60 seconds).
+
+2. In a separate elevated PowerShell window, get an admin token:
+
+```
+$body = @{
+  grant_type = 'password'
+  client_id  = 'admin-cli'
+  username   = 'admin'
+  password   = 'Admin_KC_2026!'
+}
+$token = Invoke-RestMethod -Uri 'http://localhost:8080/realms/master/protocol/openid-connect/token' `
+  -Method Post -Body $body -ContentType 'application/x-www-form-urlencoded'
+$headers = @{
+  Authorization  = 'Bearer ' + $token.access_token
+  'Content-Type' = 'application/json'
+}
+```
+
+3. Import the realm JSON file:
+
+```
+$realmJson = Get-Content C:\Installers\stigman-realm.json -Raw
+Invoke-WebRequest -Uri 'http://localhost:8080/admin/realms' -Method Post -Headers $headers -Body $realmJson -UseBasicParsing
+```
+
+4. Verify the realm was imported:
+
+```
+Invoke-RestMethod -Uri 'http://localhost:8080/admin/realms/stigman' -Headers $headers | Select-Object realm, enabled
+```
+
+You should see the realm name "stigman" with enabled = True.
+
+5. Stop Keycloak by pressing Ctrl+C in the console window where kc.bat is running.
+
+> **Note:** Keycloak must be stopped before it can be built for production mode and registered as a service in Section 7.
+
+## 5. Install and Configure STIG Manager
+
+STIG Manager is the main application that users interact with for managing STIG assessments.
+
+### Step 5.1: Extract STIG Manager
+
+Create the directory and extract:
+
+```
+New-Item -ItemType Directory -Path C:\Services\stig-manager -Force
+cd C:\Installers
+Expand-Archive stig-manager-win-1.6.12.zip -DestinationPath C:\Services\stig-manager
+```
+
+Verify the executable was extracted:
+
+```
+Test-Path C:\Services\stig-manager\stig-manager-win.exe
+```
+
+> **Note:** If the ZIP contains a nested folder (e.g., stig-manager-win-1.6.12\), move the contents up one level so that stig-manager-win.exe is directly in C:\Services\stig-manager\.
+
+### Step 5.2: Set Up WinSW Service Wrapper
+
+STIG Manager and Keycloak both use WinSW to run as Windows services. Copy the WinSW executable for each:
+
+1. Copy WinSW for STIG Manager:
+
+```
+Copy-Item C:\Installers\WinSW-x64.exe C:\Services\stig-manager\stig-manager-svc.exe
+```
+
+2. Copy WinSW for Keycloak:
+
+```
+Copy-Item C:\Installers\WinSW-x64.exe C:\Services\keycloak-26.6.3\keycloak-svc.exe
+```
+
+> **Note:** WinSW requires the .exe and .xml files to share the same base name in the same directory. For example, stig-manager-svc.exe looks for stig-manager-svc.xml.
+
+### Step 5.3: Create the STIG Manager Service Configuration
+
+You can either copy the pre-built `stig-manager-svc.xml` from deliverables\service-configs, or create it manually.
+
+**Option A:** Copy from deliverables (recommended):
+
+```
+Copy-Item C:\Installers\stig-manager-svc.xml C:\Services\stig-manager\stig-manager-svc.xml
+```
+
+**Option B:** Create manually. Create C:\Services\stig-manager\stig-manager-svc.xml:
+
+```
+<service>
+  <id>STIGManager</id>
+  <name>STIG Manager</name>
+  <description>STIG Manager OSS - DISA STIG assessment management</description>
+  <executable>%BASE%\stig-manager-win.exe</executable>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <env name="STIGMAN_DB_HOST" value="localhost" />
+  <env name="STIGMAN_DB_PORT" value="3306" />
+  <env name="STIGMAN_DB_USER" value="stigman" />
+  <env name="STIGMAN_DB_PASSWORD" value="STIGman_DB_2026!" />
+  <env name="STIGMAN_DB_SCHEMA" value="stigman" />
+  <env name="STIGMAN_API_ADDRESS" value="0.0.0.0" />
+  <env name="STIGMAN_CLASSIFICATION" value="U" />
+  <env name="STIGMAN_OIDC_PROVIDER" value="http://localhost:8080/realms/stigman" />
+  <env name="STIGMAN_CLIENT_OIDC_PROVIDER" value="https://YOUR_SERVER_IP/realms/stigman" />
+  <depend>MySQL84</depend>
+  <depend>Keycloak</depend>
+</service>
+```
+
+> **Important:** Replace STIGman_DB_2026! with the stigman database password from Step 2.3. Replace YOUR_SERVER_IP in STIGMAN_CLIENT_OIDC_PROVIDER with the same IP or hostname used in keycloak.conf.
+
+> **Note:** STIGMAN_OIDC_PROVIDER is the server-to-server URL (localhost). STIGMAN_CLIENT_OIDC_PROVIDER is the URL browsers use to reach Keycloak through Caddy. These must be different. The \<depend> tags ensure STIG Manager waits for MySQL and Keycloak to start first.
+
+## 6. Install and Configure Caddy (Reverse Proxy)
+
+Caddy serves as the front door to your deployment. It handles HTTPS/TLS encryption and routes traffic to the correct backend service (STIG Manager or Keycloak).
+
+### Step 6.1: Set Up Caddy
+
+Create the Caddy directory and copy the executable:
+
+```
+New-Item -ItemType Directory -Path C:\Services\caddy -Force
+Copy-Item C:\Installers\caddy_windows_amd64.exe C:\Services\caddy\caddy.exe
+```
+
+### Step 6.2: Create the Caddyfile
+
+Copy the pre-built Caddyfile or create `C:\Services\caddy\Caddyfile` with the following content:
+
+```
+YOUR_SERVER_IP, localhost {
+    tls internal
+```
+
+```
+    # Keycloak authentication paths
+    handle /realms/* {
+        reverse_proxy localhost:8080
+    }
+    handle /resources/* {
+        reverse_proxy localhost:8080
+    }
+```
+
+```
+    # API routes: disable caching to prevent 304 issues with ExtJS
+    handle /api/* {
+        header Cache-Control "no-store"
+        reverse_proxy localhost:54000 {
+            flush_interval -1
+        }
+    }
+```
+
+```
+    # All other traffic (web UI and static assets)
+    handle {
+        reverse_proxy localhost:54000
+    }
+}
+```
+
+> **Important:** Replace YOUR_SERVER_IP with your server’s IP address or DNS hostname. This must match the hostname value in keycloak.conf (without the https:// prefix).
+
+> **Note:** The “tls internal” directive generates a self-signed certificate for initial testing. For production deployments with CA-issued certificates, see the Production Transition Guide. Including “localhost” allows access from the server itself during setup.
+
+## 7. Register Windows Services
+
+All commands in this section must be run in an elevated (Administrator) PowerShell.
+
+### Step 7.1: Build Keycloak for Production Mode
+
+Before registering Keycloak as a service, it must be built for production mode. The build step reads keycloak.conf and optimizes Keycloak’s startup configuration.
+
+```
+$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot'
+cd C:\Services\keycloak-26.6.3
+.\bin\kc.bat build
+```
+
+Wait for the build to complete. You should see “Server build done.”
+
+> **Important:** You must run kc.bat build any time you change keycloak.conf. The service uses “start --optimized” which requires a prior build.
+
+### Step 7.2: Create the Keycloak Service Configuration
+
+Copy `keycloak-svc.xml` from deliverables\service-configs, or create it manually at C:\Services\keycloak-26.6.3\keycloak-svc.xml:
+
+```
+<service>
+  <id>Keycloak</id>
+  <name>Keycloak</name>
+  <description>Keycloak OIDC Identity Provider for STIG Manager</description>
+  <executable>cmd.exe</executable>
+  <arguments>/c "%BASE%\bin\kc.bat" start --optimized</arguments>
+  <env name="JAVA_HOME" value="C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot" />
+  <workingdirectory>%BASE%</workingdirectory>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <depend>MySQL84</depend>
+</service>
+```
+
+> **Note:** The WinSW wrapper invokes cmd.exe /c kc.bat rather than java.exe directly. This is required because kc.bat sets essential JVM properties (-Dkc.home.dir, etc.) that Keycloak needs to function correctly.
+
+### Step 7.3: Register All Services
+
+Register and start each service in dependency order:
+
+**Caddy (reverse proxy):**
+
+```
+sc.exe create Caddy binPath= '"C:\Services\caddy\caddy.exe" run --config "C:\Services\caddy\Caddyfile"' start= auto
+sc.exe description Caddy 'Caddy reverse proxy for STIG Manager'
+```
+
+**Keycloak (identity provider):**
+
+```
+cd C:\Services\keycloak-26.6.3
+.\keycloak-svc.exe install
+```
+
+**STIG Manager (application):**
+
+```
+cd C:\Services\stig-manager
+.\stig-manager-svc.exe install
+```
+
+### Step 7.4: Start Services
+
+Start all services in dependency order, allowing time for each to initialize:
+
+```
+Start-Service MySQL84
+Start-Sleep -Seconds 5
+Start-Service Keycloak
+Start-Sleep -Seconds 30
+Start-Service STIGManager
+Start-Sleep -Seconds 10
+Start-Service Caddy
+```
+
+> **Note:** Keycloak takes 30–60 seconds to fully start. If STIG Manager starts before Keycloak is ready, it will retry the OIDC connection automatically.
+
+### Step 7.5: Verify Service Dependencies
+
+The WinSW \<depend> tags and sc.exe registration ensure services start in the correct order:
+
+- MySQL84 → no dependencies (starts first)
+- Keycloak → depends on MySQL84
+- STIGManager → depends on MySQL84 and Keycloak
+- Caddy → no hard dependency (reverse proxy retries upstream connections automatically)
+
+Verify with:
+
+```
+sc.exe qc Keycloak
+sc.exe qc STIGManager
+```
+
+In the output, look for the DEPENDENCIES line. Keycloak should list MySQL84; STIGManager should list both MySQL84 and Keycloak.
+
+## 8. Verify the Installation
+
+### Step 8.1: Check All Services Are Running
+
+```
+Get-Service MySQL84, Keycloak, STIGManager, Caddy | Format-Table Name, Status, StartType
+```
+
+All four services should show Status: Running and StartType: Automatic.
+
+### Step 8.2: Verify the API
+
+Test that STIG Manager is responding by querying the API directly (bypasses Caddy TLS):
+
+```
+$api = Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition'
+Write-Host "STIG Manager version: $($api.info.version)"
+```
+
+You should see: STIG Manager version: 1.6.12
+
+Also verify Keycloak is serving the STIG Manager realm:
+
+```
+$kc = Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/.well-known/openid-configuration'
+Write-Host "Keycloak issuer: $($kc.issuer)"
+```
+
+You should see the issuer URL matching your server address (e.g., https://YOUR_SERVER_IP/realms/stigman).
+
+Verify Caddy is listening on HTTPS:
+
+```
+Test-NetConnection -ComputerName localhost -Port 443 | Select-Object TcpTestSucceeded
+```
+
+> **Note:** These verification commands use the direct backend HTTP ports (54000 and 8080) to avoid self-signed certificate issues in PowerShell 5.1. The browser test in Step 8.3 verifies the full HTTPS path through Caddy.
+
+### Step 8.3: Access STIG Manager
+
+1. Open a web browser and navigate to https://YOUR_SERVER_IP/
+2. If using self-signed certificates (tls internal), your browser will show a security warning. Click Advanced and proceed to accept the certificate.
+3. You will see the Keycloak login page branded “STIG Manager”.
+4. Log in with one of the test accounts from stigman-realm.json:
+
+| Username | Password | Access Level |
+|----|----|----|
+| `stigman-admin` | `STIGman_Admin_2026!` | Full admin — manage collections, users, STIGs |
+| `stigman-user` | `STIGman_User_2026!` | Standard user — create collections, run assessments |
+
+5. After login, you should see the STIG Manager home page with the UNCLASSIFIED classification banner.
+
+> **Note:** These test accounts and passwords are defined in stigman-realm.json. Change all passwords before deploying to production. See the Production Transition Guide for the password change procedure.
+
+## 9. Troubleshooting
+
+### MySQL service won’t start
+
+Ensure the data directory was initialized with mysqld --initialize-insecure before installing the service. Check the MySQL error log:
+
+```
+Get-Content 'C:\ProgramData\MySQL\MySQL Server 8.4\Data\*.err' -Tail 30
+```
+
+### ‘java’ is not recognized
+
+JAVA_HOME environment variable is not set or the current session has not picked it up. Run:
+
+```
+$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot'
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+```
+
+To make it permanent, rerun the SetEnvironmentVariable command from Section 3.
+
+### Keycloak fails to start as a service
+
+Check the WinSW log for errors:
+
+```
+Get-Content C:\Services\keycloak-26.6.3\keycloak-svc.err.log -Tail 30
+```
+
+Common causes:
+
+- kc.bat build was not run after editing keycloak.conf
+- JAVA_HOME is not set in keycloak-svc.xml or points to a missing JDK
+- MySQL is not running (Keycloak depends on it for session/user storage)
+
+### STIG Manager shows ‘Missing username claim’
+
+The Keycloak realm is missing the preferred_username protocol mapper. This mapper is included in the stigman-realm.json file. Re-import the realm or manually add the mapper in the Keycloak admin console under the stig-manager client’s Mappers tab.
+
+### Browser shows ‘Invalid scopes’ error
+
+The Keycloak realm is missing required client scopes. Verify that the following scopes exist and are assigned as default scopes to the stig-manager client:
+
+- openid
+- stig-manager:stig, stig-manager:stig:read, stig-manager:stig:write
+- stig-manager:collection
+- stig-manager:user, stig-manager:user:read
+- stig-manager:op
+
+### Keycloak redirects to HTTPS but page doesn’t load
+
+Caddy must be running before Keycloak redirects work. Verify:
+
+```
+Get-Service Caddy | Select-Object Name, Status
+Test-NetConnection -ComputerName localhost -Port 443
+```
+
+If Caddy is running but pages don’t load, check the Caddyfile for syntax errors:
+
+```
+C:\Services\caddy\caddy.exe validate --config C:\Services\caddy\Caddyfile
+```
+
+### ERR_SSL_PROTOCOL_ERROR from network clients
+
+The Caddyfile address must include your server’s IP or hostname. If it only says “localhost”, Caddy will not serve HTTPS for external connections. Ensure your Caddyfile starts with:
+
+```
+YOUR_SERVER_IP, localhost {
+```
+
+### ServiceWorker registration fails (code 18) from network clients
+
+This occurs when accessing the server with a self-signed certificate. Browsers block ServiceWorkers on untrusted HTTPS connections. The application still works but some caching features are unavailable. Install CA-issued certificates per the Production Transition Guide to resolve this.
+
+### STIG Manager can’t connect to Keycloak
+
+Verify the STIGMAN_OIDC_PROVIDER environment variable in stig-manager-svc.xml points to http://localhost:8080/realms/stigman (not https). The server-to-server connection uses HTTP because Caddy is not in the path for backend communication.
+
+## 10. STIG Manager Watcher (Optional)
+
+STIG Manager Watcher is a companion utility that monitors a directory for STIG assessment files (.ckl, .cklb, or XCCDF XML) and automatically uploads them to a STIG Manager collection. This enables automated workflows where scanning tools drop results into a folder and Watcher handles the import.
+
+### Step 10.1: Extract Watcher
+
+1. Create the Watcher directory and extract the archive:
+
+```
+New-Item -ItemType Directory -Path C:\Services\stigman-watcher -Force
+Expand-Archive -Path C:\Installers\stigman-watcher-win-1.6.9.zip -DestinationPath C:\Services\stigman-watcher
+```
+
+2. Create the watched directory:
+
+```
+New-Item -ItemType Directory -Path C:\Services\stigman-watcher\watched -Force
+```
+
+### Step 10.2: Create the Keycloak Watcher Client
+
+The Watcher authenticates to STIG Manager using OIDC Client Credentials flow. You must create a confidential client in Keycloak.
+
+3. Open the Keycloak admin console in a browser:
+
+```
+https://YOUR_SERVER_IP/admin
+```
+
+4. Navigate to the stigman realm, then Clients > Create client.
+5. Configure the client:
+
+- Client ID: stigman-watcher
+- Client authentication: ON (confidential)
+- Authentication flow: check only Service accounts roles
+- Uncheck Standard flow and Direct access grants
+
+6. After saving, go to the Credentials tab and copy the Client Secret.
+7. Go to the Client scopes tab. Add the following scopes as Default scopes:
+
+- openid
+- stig-manager:stig, stig-manager:stig:read, stig-manager:stig:write
+- stig-manager:collection
+- stig-manager:user, stig-manager:user:read
+- stig-manager:op
+
+8. Go to the Protocol mappers tab > Configure a new mapper > By configuration > User Realm Role. Configure:
+
+- Name: stigman-roles-mapper
+- Multivalued: ON
+- Token Claim Name: realm_access.roles
+- Add to ID token: ON, Add to access token: ON, Add to userinfo: ON
+
+> **Important:** The roles mapper is critical. Without it, the Watcher service account will authenticate but have no STIG Manager privileges.
+
+9. Go to Service account roles tab. Click Assign role and assign: admin, user, create_collection.
+
+### Step 10.3: Grant Watcher Collection Access
+
+After the Watcher authenticates to STIG Manager for the first time, its service account is registered. You must then grant it access to the target collection.
+
+10. Get an access token for the Watcher client:
+
+```
+$token = (Invoke-RestMethod -Uri ‘http://localhost:8080/realms/stigman/protocol/openid-connect/token’ `
+  -Method POST -Body @{grant_type=’client_credentials’; client_id=’stigman-watcher’; `
+  client_secret=’YOUR_CLIENT_SECRET’}).access_token
+```
+
+11. Trigger the Watcher’s first login to register its service account:
+
+```
+Invoke-RestMethod -Uri ‘http://localhost:54000/api/user’ -Headers @{Authorization="Bearer $token"} -Method GET
+```
+
+12. Grant the Watcher Manage access (roleId 4) to your collection (replace 1 with your collectionId):
+
+```
+Invoke-RestMethod -Uri ‘http://localhost:54000/api/collections/1/grants?elevate=true’ `
+  -Method POST -ContentType ‘application/json’ -Headers @{Authorization="Bearer $token"} `
+  -Body ‘[{"userId": "2", "roleId": 4}]’
+```
+
+> **Note:** The userId for the Watcher service account is shown in the response from Step 2. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner.
+
+### Step 10.4: Configure the Watcher
+
+Create the .env configuration file in the Watcher directory:
+
+```
+Set-Content -Path C:\Services\stigman-watcher\.env -Value @’
+WATCHER_ADD_EXISTING=true
+WATCHER_API_BASE=http://localhost:54000/api
+WATCHER_AUTHORITY=http://localhost:8080/realms/stigman
+WATCHER_CARGO_DELAY=2000
+WATCHER_CARGO_SIZE=25
+WATCHER_CLIENT_ID=stigman-watcher
+WATCHER_CLIENT_SECRET=YOUR_CLIENT_SECRET
+WATCHER_COLLECTION=1
+WATCHER_MODE=scan
+WATCHER_PATH=C:\Services\stigman-watcher\watched
+’@
+```
+
+> **Important:** Replace YOUR_CLIENT_SECRET with the client secret from Step 10.2. Replace the WATCHER_COLLECTION value with the collectionId of your target collection.
+
+### Step 10.5: Test the Watcher
+
+Run a one-shot test from the Watcher directory to verify connectivity:
+
+```
+Push-Location C:\Services\stigman-watcher
+.\stigman-watcher-win.exe --one-shot --log-level verbose
+Pop-Location
+```
+
+You should see successful authentication, API connection, and a scan that finishes with no work to do (if the watched directory is empty). The key messages to look for:
+
+- preflight API version — confirms API connectivity
+- preflight token request succeeded — confirms Keycloak authentication
+- preflight api requests succeeded — confirms collection access
+
+### Step 10.6: Register Watcher as a Windows Service
+
+13. Copy the WinSW executable:
+
+```
+Copy-Item C:\Installers\WinSW-x64.exe C:\Services\stigman-watcher\stigman-watcher-svc.exe
+```
+
+14. Copy the pre-built stigman-watcher-svc.xml from deliverables\service-configs, or create it manually:
+
+```
+<service>
+  <id>STIGManagerWatcher</id>
+  <name>STIG Manager Watcher</name>
+  <description>STIG Manager Watcher - auto-uploads STIG results</description>
+  <executable>%BASE%\stigman-watcher-win.exe</executable>
+  <arguments>--mode scan --retry-count 24 --retry-interval 5000</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <depend>STIGManager</depend>
+  <depend>Keycloak</depend>
+  <depend>MySQL84</depend>
+</service>
+```
+
+> **Note:** The delayedAutoStart setting defers startup until after core services finish. The --retry-count 24 with --retry-interval 5000 gives the Watcher up to 2 minutes of retries, allowing STIG Manager and Keycloak time to fully initialize after a reboot.
+
+15. Register and start the service (elevated PowerShell):
+
+```
+Push-Location C:\Services\stigman-watcher
+.\stigman-watcher-svc.exe install
+Pop-Location
+Start-Service STIGManagerWatcher
+```
+
+16. Verify the service is running:
+
+```
+Get-Service STIGManagerWatcher | Format-Table Name, Status, StartType
+```
+
+### Step 10.7: Using the Watcher
+
+To import STIG assessment results, simply drop .ckl, .cklb, or XCCDF XML files into the watched directory:
+
+```
+C:\Services\stigman-watcher\watched\
+```
+
+The Watcher scans the directory at regular intervals (default: every 5 minutes) and uploads any new files to the configured STIG Manager collection. It automatically creates Assets and STIG Assignments as needed.
+
+To view Watcher logs:
+
+```
+Get-Content C:\Services\stigman-watcher\stigman-watcher-svc.out.log -Tail 50
+```
+
+### Step 10.8: Watching a Network Share (Optional)
+
+In production environments, you may want the Watcher to monitor a network share instead of a local directory. This allows scanning tools on other systems to drop results to a central location for automatic import.
+
+**1. Update the watched path in the .env file**
+
+Change the WATCHER_PATH value to the UNC path of the network share:
+
+```
+WATCHER_PATH=\\fileserver\stigman-results
+```
+
+> **Note:** Use UNC paths (\\server\share), not mapped drive letters. Windows services run in a different session and cannot see drive mappings created by user logons.
+
+**2. Configure the service to run as a domain account**
+
+By default, Windows services run as the Local System account, which has no access to network shares. You must change the service logon account to a domain account (or local account with network share permissions).
+
+17. Open Services (services.msc) or use PowerShell:
+
+```
+# Set the service to run as a domain account
+sc.exe config STIGManagerWatcher obj= "DOMAIN\\svc-stigman" password= "ServiceAccountPassword"
+```
+
+Alternatively, configure via the Services GUI:
+
+- Open services.msc and find STIG Manager Watcher
+- Right-click > Properties > Log On tab
+- Select This account and enter the domain account credentials
+- Click OK and restart the service
+
+> **Note:** The service account must have Read access to the network share at minimum. If the Watcher needs to delete or move files after processing, the account also needs Modify access.
+
+**3. Verify connectivity**
+
+Before restarting the service, test that the path is accessible from an elevated prompt:
+
+```
+Test-Path '\\fileserver\stigman-results'
+Get-ChildItem '\\fileserver\stigman-results'
+```
+
+**4. Restart the Watcher service**
+
+```
+Restart-Service STIGManagerWatcher
+```
+
+Check the logs to confirm the Watcher is scanning the new path:
+
+```
+Get-Content C:\Services\stigman-watcher\stigman-watcher-svc.out.log -Tail 20
+```
+
+You should see the scan started message referencing your network share path.
+
+> **Important:** If the network share becomes unavailable (server offline, network issue), the Watcher will log errors and retry based on the --retry-count and --retry-interval settings. The default is 5 retries at 5-second intervals before the Watcher exits. When running as a service, WinSW will restart it automatically.
+
+---
+
+## Part II: Production Transition
+
+*The following sections cover the steps to harden and transition a working test deployment to production.*
+
+## 11. Configure Server Hostname
+
+Three configuration files reference the server’s externally-visible address. All three must match. The OIDC provider URL that browsers use must match the hostname in the address bar, or authentication will fail.
+
+### Files to Update
+
+**Caddyfile — Site address (first line of the file)**
+
+Path: C:\Services\caddy\Caddyfile
+
+```
+# Change the site address to your FQDN:
+stigman.yourdomain.mil, localhost {
+```
+
+**keycloak.conf — The hostname setting**
+
+Path: C:\Services\keycloak-26.6.3\conf\keycloak.conf
+
+```
+hostname=https://stigman.yourdomain.mil
+```
+
+**stig-manager-svc.xml — The CLIENT_OIDC_PROVIDER value**
+
+Path: C:\Services\stig-manager\stig-manager-svc.xml
+
+```
+<env name="STIGMAN_CLIENT_OIDC_PROVIDER" value="https://stigman.yourdomain.mil/realms/stigman" />
+```
+
+> **Note:** STIGMAN_OIDC_PROVIDER stays as http://localhost:8080/realms/stigman. This is server-to-server communication between STIG Manager and Keycloak on the same host and never leaves the machine.
+
+### Automated Method
+
+Run the included script from an elevated command prompt:
+
+```
+configure-hostname.cmd stigman.yourdomain.mil
+```
+
+The script updates all three files, rebuilds Keycloak (required when hostname changes), and restarts all services.
+
+### After Changing the Hostname
+
+Keycloak must be rebuilt any time keycloak.conf changes. The configure-hostname.cmd script does this automatically. If you change the hostname manually, run:
+
+```
+cd C:\Services\keycloak-26.6.3
+.\bin\kc.bat build
+```
+
+Then restart Keycloak, STIG Manager, and reload Caddy.
+
+## 12. Install TLS Certificates
+
+The test deployment uses Caddy’s built-in CA to generate self-signed certificates. Browsers show a security warning and block ServiceWorkers. For production, replace these with certificates issued by your organization’s CA (e.g., Active Directory Certificate Services).
+
+### Certificate Requirements
+
+- PEM-encoded certificate file and private key file
+- Subject or SAN must include the server’s FQDN
+- Key usage: Digital Signature, Key Encipherment
+- Extended key usage: Server Authentication (1.3.6.1.5.5.7.3.1)
+- If your CA provides a separate intermediate/chain cert, concatenate it to the end of cert.pem
+
+### Converting PFX to PEM
+
+If your CA provides a .pfx (PKCS#12) file instead of PEM, convert it with OpenSSL:
+
+```
+# Extract the certificate:
+openssl pkcs12 -in cert.pfx -out cert.pem -clcerts -nokeys
+# Extract the private key:
+openssl pkcs12 -in cert.pfx -out key.pem -nocerts -nodes
+```
+
+### Automated Installation
+
+Run the included script from an elevated command prompt:
+
+```
+configure-tls.cmd C:\certs\stigman.pem C:\certs\stigman-key.pem
+```
+
+The script copies the cert files to C:\Services\caddy\certs\, updates the Caddyfile, restricts permissions on the private key, and restarts Caddy.
+
+### Manual Installation
+
+Edit the Caddyfile and replace the tls directive:
+
+```
+# Before (self-signed):
+    tls internal
+```
+
+```
+# After (CA-issued):
+    tls C:\Services\caddy\certs\cert.pem C:\Services\caddy\certs\key.pem
+```
+
+Then restart the Caddy service. No changes to Keycloak or STIG Manager are needed — only Caddy terminates TLS.
+
+> **Note:** If the certificate was issued by your internal CA (AD CS), domain-joined clients will trust it automatically. No client-side configuration is needed.
+
+## 13. Active Directory / LDAP Integration
+
+The test deployment uses local Keycloak user accounts. For production, configure Keycloak to authenticate users against Active Directory via LDAP federation. Users will log in with their AD credentials.
+
+### Prerequisites
+
+- An AD service account with read access to user objects (for LDAP bind)
+- The AD domain controller hostname (e.g., dc01.yourdomain.mil)
+- The base DN for user searches (e.g., OU=Users,DC=yourdomain,DC=mil)
+- LDAPS (port 636) is strongly recommended; LDAP (port 389) sends credentials in cleartext
+
+### Step 13.1: Add LDAP User Federation
+
+1. Open the Keycloak admin console at https://stigman.yourdomain.mil/admin/
+2. Select the “stigman” realm from the dropdown (top-left corner).
+3. Navigate to User federation in the left sidebar.
+4. Click “Add LDAP providers.”
+5. Configure with the following settings:
+
+**General Settings:**
+
+| Vendor | Active Directory |
+|----|----|
+| Edit Mode | `READ_ONLY` |
+
+**Connection Settings:**
+
+| Connection URL | `ldaps://dc01.yourdomain.mil:636` |
+|----|----|
+| Bind DN | `CN=svc-stigman,OU=Service Accounts,DC=yourdomain,DC=mil` |
+| Bind Credential | (service account password) |
+
+**LDAP Searching and Updating:**
+
+| Users DN | `OU=Users,DC=yourdomain,DC=mil` |
+|----|----|
+| Username LDAP attr | `sAMAccountName` |
+| RDN LDAP attr | `cn` |
+| UUID LDAP attr | `objectGUID` |
+| User Object Classes | `person, organizationalPerson, user` |
+
+6. Click “Test connection” to verify connectivity, then “Test authentication” to verify the bind credentials.
+7. Click Save.
+
+### Step 13.2: Sync and Verify Users
+
+After saving the LDAP federation, click “Sync all users” from the Action dropdown. Keycloak imports AD user accounts into its database. Verify by navigating to Users and confirming AD accounts appear.
+
+### Step 13.3: Assign STIG Manager Roles
+
+AD users need realm roles assigned before they can access the application:
+
+1. Go to Users in the left sidebar and find the AD user.
+2. Click the Role Mappings tab.
+3. Assign the appropriate realm roles:
+
+- Admin users: admin, user, create_collection
+- Standard users: user, create_collection
+
+> **Note:** Once AD integration is working and verified, disable or remove the local test accounts (stigman-admin, stigman-user) from the stigman realm.
+
+## 14. Change Default Passwords
+
+All test passwords must be changed before production use. When changing a database password, you must update both MySQL and the corresponding configuration file, then restart the service.
+
+| Credential | Config File | How to Change |
+|----|----|----|
+| MySQL root | (MySQL only) | `ALTER USER 'root'@'localhost' IDENTIFIED BY '...';` |
+| stigman DB user | stig-manager-svc.xml | ALTER USER in MySQL + update XML, restart STIGManager |
+| keycloak DB user | keycloak.conf | ALTER USER in MySQL + update conf, rebuild & restart Keycloak |
+| Keycloak admin | Keycloak Admin Console | Admin Console > Users > admin > Credentials |
+
+> **Important:** Order of operations: Change the MySQL password first (ALTER USER), then update the config file, then restart the affected service. If you update the config before MySQL, the service will fail to connect.
+
+## 15. Production Checklist
+
+Complete all items before going live:
+
+**Network and Access**
+
+- [ ] Server has a DNS hostname (A record registered)
+- [ ] Port 443 open in Windows Firewall for client access
+- [ ] configure-hostname.cmd run with production FQDN
+- [ ] Verified: clients can reach https://hostname/ from the network
+
+**TLS Certificates**
+
+- [ ] Certificate issued by organization CA for the server FQDN
+- [ ] configure-tls.cmd run with cert and key file paths
+- [ ] Verified: browser shows trusted connection (no warnings)
+
+**Authentication**
+
+- [ ] LDAP user federation configured in Keycloak stigman realm
+- [ ] AD users can log in and see the STIG Manager home page
+- [ ] STIG Manager realm roles assigned to AD users
+- [ ] Test accounts (stigman-admin, stigman-user) disabled or removed
+
+**Security**
+
+- [ ] All default passwords changed (see Section 14)
+- [ ] MySQL root password set to a strong value
+- [ ] MySQL only listens on localhost (verify: netstat -an | findstr 3306)
+- [ ] Keycloak admin console password changed
+
+**Operations**
+
+- [ ] All services set to Automatic start type
+- [ ] Services survive a server reboot (test with Restart-Computer)
+- [ ] Database backup schedule configured (mysqldump scheduled task)
+- [ ] Log rotation verified (WinSW roll-by-size at 10 MB, 3 files kept)
+- [ ] Certificate renewal process documented (before expiry date)
+
+## 16. Applying Updates
+
+STIG Manager releases new versions periodically. Because the STIG Manager API is stateless, updating is straightforward: stop the service, replace the binary, and restart. The existing service configuration, database, and Keycloak realm are all preserved. Only the stig-manager-win.exe binary changes.
+
+Most updates require no database changes. Some releases include a database migration — when they do, the release notes say so explicitly. STIG Manager tracks the database schema version and applies any required migration automatically the first time the new version starts. No manual SQL is required.
+
+> **Important:** Always back up the stigman database before applying a release that includes a database migration. Once a migration runs, the schema is upgraded and the previous version of the binary may no longer be compatible. The backup is your rollback path.
+
+### Step 16.1: Review the Release Notes
+
+Before downloading, read the release notes for every version between your current version and the target version. Check specifically for:
+
+- Database migrations (requires a backup first)
+- Breaking changes or configuration changes
+- New required environment variables in stig-manager-svc.xml
+
+Release notes are published at: https://github.com/NUWCDIVNPT/stig-manager/releases
+
+Confirm your current running version:
+
+```
+(Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition').info.version
+```
+
+### Step 16.2: Back Up the Database
+
+Create a timestamped backup of the stigman schema. Run from an elevated PowerShell. Adjust the mysqldump path if your MySQL version differs.
+
+```
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$dump = "C:\Backups\stigman-$stamp.sql"
+New-Item -ItemType Directory -Path C:\Backups -Force | Out-Null
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' `
+  -u root -p --databases stigman --routines --triggers --single-transaction `
+  --result-file=$dump
+Write-Host "Backup written to $dump"
+```
+
+> **Note:** --single-transaction takes a consistent snapshot without locking tables. --routines and --triggers ensure stored programs are included. You will be prompted for the MySQL root password.
+
+### Step 16.3: Download and Stage the New Binary
+
+Download the Windows release ZIP for the target version (replace VERSION with the version number, e.g., 1.6.12):
+
+```
+$ver = '1.6.12'
+$url = "https://github.com/NUWCDIVNPT/stig-manager/releases/download/$ver/stig-manager-win-$ver.zip"
+Invoke-WebRequest -Uri $url -OutFile "C:\Installers\stig-manager-win-$ver.zip"
+```
+
+### Step 16.4: Stop the Services
+
+If the Watcher is installed, it depends on the STIGManager service. You must stop the Watcher first, otherwise Stop-Service STIGManager fails with “Cannot stop service ... because it has dependent services.” Run these from an elevated PowerShell. MySQL, Keycloak, and Caddy stay running.
+
+```
+Stop-Service STIGManagerWatcher   # skip if the Watcher is not installed
+Stop-Service STIGManager
+Get-Service STIGManagerWatcher, STIGManager | Select-Object Name, Status
+```
+
+> **Note:** Both should report Stopped before you replace the binary. Do not use Stop-Service STIGManager -Force as a shortcut — while it does cascade-stop the Watcher, stopping the Watcher explicitly first keeps the shutdown ordered and makes the restart symmetric.
+
+### Step 16.5: Replace the Binary
+
+Back up the current binary, then extract the new one over it. The service config (stig-manager-svc.xml), WinSW wrapper, and logs are left untouched.
+
+```
+# Preserve the old binary in case rollback is needed
+Rename-Item C:\Services\stig-manager\stig-manager-win.exe stig-manager-win.exe.bak
+```
+
+```
+# Extract the new binary to a temp folder, then copy just the exe
+Expand-Archive "C:\Installers\stig-manager-win-$ver.zip" -DestinationPath C:\Installers\stigman-$ver -Force
+Copy-Item "C:\Installers\stigman-$ver\stig-manager-win.exe" C:\Services\stig-manager\stig-manager-win.exe
+```
+
+> **Note:** If the ZIP extracts into a nested folder, adjust the Copy-Item source path so it points at stig-manager-win.exe. Only the .exe needs to be replaced; the service XML and environment variables stay the same.
+
+### Step 16.6: Start the Service and Watch the Migration
+
+Start only the STIGManager service first (the Watcher is started later, in Step 16.7, after the API is confirmed healthy). If the release includes a database migration, it runs automatically during startup. Watch the log to confirm a clean start.
+
+```
+Start-Service STIGManager
+Get-Content C:\Services\stig-manager\stig-manager-svc.out.log -Tail 40 -Wait
+```
+
+In the log, confirm these signals in order (press Ctrl+C to stop following). When a migration is included, you will see:
+
+```
+"type":"migration" ... "message":"MySQL schema requires N update"
+"type":"migration" ... "status":"start" ... "name":"0047"
+"type":"migration" ... "status":"finish" ... "name":"0047"
+"type":"migration" ... "message":"All migrations performed successfully"
+"type":"state-changed" ... "currentState":"available" ... "db":true,"oidc":true
+```
+
+If there is no migration in the release, you will instead see “MySQL schema is up to date” followed by the state-changed line. Either way, the final state must be available with both db and oidc true.
+
+> **Important:** If the service fails to reach the available state, do not panic. Check the log for the specific error, then follow the rollback in Step 16.8. If a migration already completed, you must restore the database backup from Step 16.2 before starting the old binary — the upgraded schema is not compatible with the previous version.
+
+### Step 16.7: Verify and Restart the Watcher
+
+Confirm the API now reports the new version:
+
+```
+(Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition').info.version
+```
+
+Then log in through the browser at https://YOUR_SERVER_IP/ and confirm the application loads and a collection opens without errors.
+
+Once the API is confirmed healthy, restart the Watcher (if installed) and confirm it reconnects:
+
+```
+Start-Service STIGManagerWatcher
+Get-Content C:\Services\stigman-watcher\stigman-watcher-svc.out.log -Tail 10
+```
+
+Look for “preflight api requests succeeded” in the Watcher log, which confirms it re-authenticated against the upgraded API. Finally, verify the full service set:
+
+```
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
+```
+
+Once everything is verified, you can delete the .bak binary and the temporary extraction folder.
+
+### Step 16.8: Rollback (If Needed)
+
+If the new version must be reverted:
+
+1. Stop the services (Watcher first): Stop-Service STIGManagerWatcher; Stop-Service STIGManager
+2. Restore the previous binary: remove the new exe and rename stig-manager-win.exe.bak back to stig-manager-win.exe
+3. If a database migration had run, restore the backup from Step 16.2 (the upgraded schema is not compatible with the older binary)
+4. Start STIGManager and verify the version, then start STIGManagerWatcher
+
+> **Important:** Rollback after a migration always requires restoring the database backup. This is why the Step 16.2 backup is mandatory for any release with a migration.
+
+### Step 16.9: Updating Keycloak
+
+Keycloak updates differently from STIG Manager. STIG Manager is a single binary you swap in place; Keycloak is a full distribution installed into a version-named folder (C:\Services\keycloak-\<version>). The supported approach is to install the new version into a new folder, migrate your configuration into it, rebuild, and re-point the Windows service. Keeping the old folder gives you an instant rollback path.
+
+> **Important:** Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Patch releases within the same minor series (for example 26.6.2 to 26.6.3) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start.
+
+**1. Review the release notes and back up**
+
+Security releases should be applied promptly. Back up the Keycloak config file and the keycloak database schema before starting:
+
+```
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+Copy-Item C:\Services\keycloak-<oldver>\conf\keycloak.conf "C:\Backups\keycloak.conf.$stamp.bak"
+$env:MYSQL_PWD = '<mysql-root-password>'
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' `
+  -u root --databases keycloak --routines --triggers --single-transaction `
+  --result-file="C:\Backups\keycloak-db-$stamp.sql"
+$env:MYSQL_PWD = $null
+```
+
+**2. Download and extract the new version**
+
+```
+$ver = '26.6.3'
+Invoke-WebRequest -Uri "https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip" `
+  -OutFile "C:\Installers\keycloak-$ver.zip"
+Expand-Archive "C:\Installers\keycloak-$ver.zip" -DestinationPath C:\Services
+```
+
+This creates C:\Services\keycloak-\<newver>\.
+
+**3. Migrate configuration into the new folder**
+
+Copy the config file and the WinSW service wrapper from the old folder. The service XML uses %BASE%, so it works unchanged in the new location. If you added any custom providers or themes, copy those subfolders too.
+
+```
+$old = 'C:\Services\keycloak-<oldver>'; $new = 'C:\Services\keycloak-<newver>'
+Copy-Item "$old\conf\keycloak.conf"  "$new\conf\keycloak.conf"  -Force
+Copy-Item "$old\keycloak-svc.exe"     "$new\keycloak-svc.exe"     -Force
+Copy-Item "$old\keycloak-svc.xml"     "$new\keycloak-svc.xml"     -Force
+```
+
+**4. Build for optimized start**
+
+```
+$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot'
+cd C:\Services\keycloak-<newver>
+.\bin\kc.bat build
+```
+
+> **Note:** kc.bat build bakes the configuration (db vendor, hostname, features) into an optimized image so the service can start with --optimized. It is required after extracting a new distribution. The “run time options ... ignored during build time” message is normal — those settings apply at start, not build.
+
+**5. Cut over the service**
+
+Stop the dependents and Keycloak, then move the service registration from the old folder to the new one. Run from an elevated PowerShell.
+
+```
+Stop-Service STIGManagerWatcher; Stop-Service STIGManager; Stop-Service Keycloak
+cd C:\Services\keycloak-<oldver>; .\keycloak-svc.exe uninstall
+cd C:\Services\keycloak-<newver>; .\keycloak-svc.exe install
+```
+
+> **Note:** The service name (Keycloak) does not change, so the Keycloak dependencies declared by STIGManager and the Watcher continue to resolve correctly.
+
+**6. Start in order and verify**
+
+```
+Start-Service Keycloak    # wait ~30s for it to finish starting
+Start-Service STIGManager
+Start-Service STIGManagerWatcher
+```
+
+Confirm a clean start in the Keycloak log — on a version bump you will see lines such as “migrated realm stigman to \<newver>” and “Keycloak \<newver> ... started”:
+
+```
+Get-Content C:\Services\keycloak-<newver>\keycloak-svc.out.log -Tail 15
+```
+
+Then verify the identity path end-to-end: the realm OIDC metadata is served, and STIG Manager login works.
+
+```
+(Invoke-RestMethod 'http://localhost:8080/realms/stigman/.well-known/openid-configuration').issuer
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
+```
+
+Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-\<oldver> folder can be archived or deleted; until then it is your rollback (re-register the service from the old folder and restart).
+
+## Appendix C: Architecture
+
+All components run on a single Windows Server. Caddy is the only externally-facing service — it terminates TLS and routes requests to the backend services. All inter-service communication uses HTTP on localhost.
+
+**Request Flow:**
+
+```
+  Client Browser
+       |
+  HTTPS :443 (only external port)
+       |
+  [ Caddy - Reverse Proxy ]
+       |                  |
+  /api, /            /realms, /resources
+       |                  |
+  [ STIG Manager ]   [ Keycloak ]
+  HTTP :54000        HTTP :8080
+       |                  |
+       +--- [ MySQL ] ----+
+            :3306
+```
+
+**Service Ports:**
+
+| Port | Service | Listens On | Purpose |
+|----|----|----|----|
+| `443` | Caddy | All interfaces | HTTPS (external) |
+| `2019` | Caddy Admin API | localhost only | Config reload |
+| `8080` | Keycloak | localhost only | OIDC / Auth |
+| `54000` | STIG Manager | All interfaces* | API / Web UI |
+| `3306` | MySQL | localhost only | Database |
+
+> **Note:** \*STIG Manager listens on 0.0.0.0:54000 but should only be accessed through Caddy. Consider adding a Windows Firewall rule to block direct access to port 54000 from external hosts.
+
+## Appendix A: Credentials Reference
+
+This table shows all accounts and the default test passwords used in this guide. Record any password changes you make during installation.
+
+| Service | Account | Default Test Password | Configured In |
+|----|----|----|----|
+| MySQL Root | root@localhost | `STIGman_Root_2026!` | MySQL only |
+| MySQL (STIG Mgr) | stigman@localhost | `STIGman_DB_2026!` | stig-manager-svc.xml |
+| MySQL (Keycloak) | keycloak@localhost | `Keycloak_DB_2026!` | keycloak.conf |
+| Keycloak Admin | admin | `Admin_KC_2026!` | bootstrap-admin CLI |
+| STIG Mgr Admin | stigman-admin | `STIGman_Admin_2026!` | stigman-realm.json |
+| STIG Mgr User | stigman-user | `STIGman_User_2026!` | stigman-realm.json |
+| Watcher Client | stigman-watcher | `(generated secret)` | Keycloak + .env |
+
+> **Important:** Change ALL passwords before deploying to production. See the Production Transition Guide Section 4 for the step-by-step password change procedure.
+
+## Appendix B: Service Management Commands
+
+Common commands for managing the STIG Manager services. All commands require an elevated (Administrator) PowerShell.
+
+**Check service status:**
+
+```
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status, StartType
+```
+
+**Start all services (dependency order):**
+
+```
+Start-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher
+```
+
+**Stop all services (reverse dependency order):**
+
+```
+Stop-Service STIGManagerWatcher, Caddy, STIGManager
+Stop-Service Keycloak
+Stop-Service MySQL84
+```
+
+> **Note:** STIGManagerWatcher and STIGManager depend on Keycloak, so they must be stopped first. Attempting to stop Keycloak while dependent services are running will fail unless you use the -Force flag, which forcibly terminates dependent services.
+
+**Restart a single service:**
+
+```
+Restart-Service STIGManager
+```
+
+**View STIG Manager logs:**
+
+```
+Get-Content C:\Services\stig-manager\stig-manager-svc.out.log -Tail 50
+```
+
+**View Keycloak logs:**
+
+```
+Get-Content C:\Services\keycloak-26.6.3\keycloak-svc.out.log -Tail 50
+```
+
+**View Caddy logs (if Caddy fails to start):**
+
+```
+C:\Services\caddy\caddy.exe run --config C:\Services\caddy\Caddyfile
+```
+
+> **Note:** Running Caddy interactively shows errors directly in the console. Press Ctrl+C to stop, then fix the Caddyfile and restart the service.
+
+**Reload Caddy config without restarting:**
+
+```
+$body = Get-Content C:\Services\caddy\Caddyfile -Raw
+Invoke-WebRequest -Uri 'http://localhost:2019/load' -Method POST -Body $body -ContentType 'text/caddyfile' -UseBasicParsing
+```
+
+**View Watcher logs:**
+
+```
+Get-Content C:\Services\stigman-watcher\stigman-watcher-svc.out.log -Tail 50
+```
+
+**Verify STIG Manager version:**
+
+```
+(Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition').info.version
+```
