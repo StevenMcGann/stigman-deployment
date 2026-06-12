@@ -228,7 +228,7 @@ const doc = new Document({
       p("Connect to MySQL and create the databases and service accounts:"),
       code("& 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysql.exe' -u root"),
       blank(),
-      p("Paste the following SQL commands. This guide uses the test passwords shown below. See Appendix A for all default credentials."),
+      p("Paste the following SQL commands. This guide uses the test passwords shown below. See Appendix B for all default credentials."),
       important("Replace all passwords with strong, unique values before deploying to production."),
       blank(),
       code("ALTER USER 'root'@'localhost' IDENTIFIED BY 'STIGman_Root_2026!';"),
@@ -488,7 +488,7 @@ const doc = new Document({
       code("}"),
       blank(),
       important("Replace YOUR_SERVER_IP with your server’s IP address or DNS hostname. This must match the hostname value in keycloak.conf (without the https:// prefix)."),
-      note("The “tls internal” directive generates a self-signed certificate for initial testing. For production deployments with CA-issued certificates, see the Production Transition Guide. Including “localhost” allows access from the server itself during setup."),
+      note("The “tls internal” directive generates a self-signed certificate for initial testing. For production deployments with CA-issued certificates, see Section 12 (Install TLS Certificates). Including “localhost” allows access from the server itself during setup."),
       pb(),
 
       // ══════════════════════════════════════════════════
@@ -614,7 +614,7 @@ const doc = new Document({
       }),
       blank(),
       numItem5("After login, you should see the STIG Manager home page with the UNCLASSIFIED classification banner."),
-      note("These test accounts and passwords are defined in stigman-realm.json. Change all passwords before deploying to production. See the Production Transition Guide for the password change procedure."),
+      note("These test accounts and passwords are defined in stigman-realm.json. Change all passwords before deploying to production. See Section 14 (Change Default Passwords) for the procedure."),
       pb(),
 
       // ══════════════════════════════════════════════════
@@ -671,7 +671,7 @@ const doc = new Document({
       blank(),
 
       h2("ServiceWorker registration fails (code 18) from network clients"),
-      p("This occurs when accessing the server with a self-signed certificate. Browsers block ServiceWorkers on untrusted HTTPS connections. The application still works but some caching features are unavailable. Install CA-issued certificates per the Production Transition Guide to resolve this."),
+      p("This occurs when accessing the server with a self-signed certificate. Browsers block ServiceWorkers on untrusted HTTPS connections. The application still works but some caching features are unavailable. Install CA-issued certificates per Section 12 to resolve this."),
       blank(),
 
       h2("STIG Manager can’t connect to Keycloak"),
@@ -724,21 +724,21 @@ const doc = new Document({
       p("After the Watcher authenticates to STIG Manager for the first time, its service account is registered. You must then grant it access to the target collection."),
       blank(),
       numItem7("Get an access token for the Watcher client:"),
-      code("$token = (Invoke-RestMethod -Uri ‘http://localhost:8080/realms/stigman/protocol/openid-connect/token’ `"),
-      code("  -Method POST -Body @{grant_type=’client_credentials’; client_id=’stigman-watcher’; `"),
-      code("  client_secret=’YOUR_CLIENT_SECRET’}).access_token"),
+      code("$token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' `"),
+      code("  -Method POST -Body @{grant_type='client_credentials'; client_id='stigman-watcher'; `"),
+      code("  client_secret='YOUR_CLIENT_SECRET'}).access_token"),
       numItem7("Trigger the Watcher’s first login to register its service account:"),
-      code("Invoke-RestMethod -Uri ‘http://localhost:54000/api/user’ -Headers @{Authorization=\"Bearer $token\"} -Method GET"),
+      code("Invoke-RestMethod -Uri 'http://localhost:54000/api/user' -Headers @{Authorization=\"Bearer $token\"} -Method GET"),
       numItem7("Grant the Watcher Manage access (roleId 4) to your collection (replace 1 with your collectionId):"),
-      code("Invoke-RestMethod -Uri ‘http://localhost:54000/api/collections/1/grants?elevate=true’ `"),
-      code("  -Method POST -ContentType ‘application/json’ -Headers @{Authorization=\"Bearer $token\"} `"),
-      code("  -Body ‘[{\"userId\": \"2\", \"roleId\": 4}]’"),
-      note("The userId for the Watcher service account is shown in the response from Step 2. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner."),
+      code("Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/1/grants?elevate=true' `"),
+      code("  -Method POST -ContentType 'application/json' -Headers @{Authorization=\"Bearer $token\"} `"),
+      code("  -Body '[{\"userId\": \"2\", \"roleId\": 4}]'"),
+      note("The userId for the Watcher service account is shown in the response from the previous command. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner."),
       blank(),
 
       h2("Step 10.4: Configure the Watcher"),
       p("Create the .env configuration file in the Watcher directory:"),
-      code("Set-Content -Path C:\\Services\\stigman-watcher\\.env -Value @’"),
+      code("Set-Content -Path C:\\Services\\stigman-watcher\\.env -Value @'"),
       code("WATCHER_ADD_EXISTING=true"),
       code("WATCHER_API_BASE=http://localhost:54000/api"),
       code("WATCHER_AUTHORITY=http://localhost:8080/realms/stigman"),
@@ -749,7 +749,7 @@ const doc = new Document({
       code("WATCHER_COLLECTION=1"),
       code("WATCHER_MODE=scan"),
       code("WATCHER_PATH=C:\\Services\\stigman-watcher\\watched"),
-      code("’@"),
+      code("'@"),
       important("Replace YOUR_CLIENT_SECRET with the client secret from Step 10.2. Replace the WATCHER_COLLECTION value with the collectionId of your target collection."),
       blank(),
 
@@ -817,7 +817,7 @@ const doc = new Document({
       pBold("2. Configure the service to run as a domain account"),
       p("By default, Windows services run as the Local System account, which has no access to network shares. You must change the service logon account to a domain account (or local account with network share permissions)."),
       blank(),
-      numItem7("Open Services (services.msc) or use PowerShell:"),
+      p("Set the service logon account from PowerShell:"),
       code("# Set the service to run as a domain account"),
       code("sc.exe config STIGManagerWatcher obj= \"DOMAIN\\\\svc-stigman\" password= \"ServiceAccountPassword\""),
       blank(),
@@ -962,6 +962,7 @@ const doc = new Document({
       pBold("General Settings:"),
       new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [3000, 6360],
         rows: [
+          new TableRow({ children: [tc("Setting",{hdr:true,w:3000}), tc("Value",{hdr:true,w:6360})] }),
           new TableRow({ children: [tc("Vendor",{w:3000}), tc("Active Directory",{w:6360})] }),
           new TableRow({ children: [tc("Edit Mode",{w:3000}), tc("READ_ONLY",{w:6360,mono:true})] }),
         ],
@@ -971,6 +972,7 @@ const doc = new Document({
       pBold("Connection Settings:"),
       new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [3000, 6360],
         rows: [
+          new TableRow({ children: [tc("Setting",{hdr:true,w:3000}), tc("Value",{hdr:true,w:6360})] }),
           new TableRow({ children: [tc("Connection URL",{w:3000}), tc("ldaps://dc01.yourdomain.mil:636",{w:6360,mono:true})] }),
           new TableRow({ children: [tc("Bind DN",{w:3000}), tc("CN=svc-stigman,OU=Service Accounts,DC=yourdomain,DC=mil",{w:6360,mono:true})] }),
           new TableRow({ children: [tc("Bind Credential",{w:3000}), tc("(service account password)",{w:6360})] }),
@@ -981,6 +983,7 @@ const doc = new Document({
       pBold("LDAP Searching and Updating:"),
       new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [3000, 6360],
         rows: [
+          new TableRow({ children: [tc("Setting",{hdr:true,w:3000}), tc("Value",{hdr:true,w:6360})] }),
           new TableRow({ children: [tc("Users DN",{w:3000}), tc("OU=Users,DC=yourdomain,DC=mil",{w:6360,mono:true})] }),
           new TableRow({ children: [tc("Username LDAP attr",{w:3000}), tc("sAMAccountName",{w:6360,mono:true})] }),
           new TableRow({ children: [tc("RDN LDAP attr",{w:3000}), tc("cn",{w:6360,mono:true})] }),
@@ -1228,7 +1231,7 @@ const doc = new Document({
       // ══════════════════════════════════════════════════
       // Appendix C: Architecture
       // ══════════════════════════════════════════════════
-      h1("Appendix C: Architecture"),
+      h1("Appendix A: Architecture"),
       p("All components run on a single Windows Server. Caddy is the only externally-facing service — it terminates TLS and routes requests to the backend services. All inter-service communication uses HTTP on localhost."),
       blank(),
 
@@ -1266,7 +1269,7 @@ const doc = new Document({
       // ══════════════════════════════════════════════════
       // Appendix A: Credentials
       // ══════════════════════════════════════════════════
-      h1("Appendix A: Credentials Reference"),
+      h1("Appendix B: Credentials Reference"),
       p("This table shows all accounts and the default test passwords used in this guide. Record any password changes you make during installation."),
       blank(),
       new Table({ width: { size: 9360, type: WidthType.DXA }, columnWidths: [2200, 2200, 2560, 2400],
@@ -1282,13 +1285,13 @@ const doc = new Document({
         ],
       }),
       blank(),
-      important("Change ALL passwords before deploying to production. See the Production Transition Guide Section 4 for the step-by-step password change procedure."),
+      important("Change ALL passwords before deploying to production. See Section 14 for the step-by-step password change procedure."),
       pb(),
 
       // ══════════════════════════════════════════════════
       // Appendix B: Service Commands
       // ══════════════════════════════════════════════════
-      h1("Appendix B: Service Management Commands"),
+      h1("Appendix C: Service Management Commands"),
       p("Common commands for managing the STIG Manager services. All commands require an elevated (Administrator) PowerShell."),
       blank(),
 

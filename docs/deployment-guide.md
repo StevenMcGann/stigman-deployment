@@ -86,9 +86,9 @@
   - [Step 16.7: Verify and Restart the Watcher](#step-167-verify-and-restart-the-watcher)
   - [Step 16.8: Rollback (If Needed)](#step-168-rollback-if-needed)
   - [Step 16.9: Updating Keycloak](#step-169-updating-keycloak)
-- [Appendix C: Architecture](#appendix-c-architecture)
-- [Appendix A: Credentials Reference](#appendix-a-credentials-reference)
-- [Appendix B: Service Management Commands](#appendix-b-service-management-commands)
+- [Appendix A: Architecture](#appendix-a-architecture)
+- [Appendix B: Credentials Reference](#appendix-b-credentials-reference)
+- [Appendix C: Service Management Commands](#appendix-c-service-management-commands)
 
 ## 1. Prerequisites and Software Downloads
 
@@ -212,7 +212,7 @@ Connect to MySQL and create the databases and service accounts:
 & 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root
 ```
 
-Paste the following SQL commands. This guide uses the test passwords shown below. See Appendix A for all default credentials.
+Paste the following SQL commands. This guide uses the test passwords shown below. See Appendix B for all default credentials.
 
 > **Important:** Replace all passwords with strong, unique values before deploying to production.
 
@@ -527,7 +527,7 @@ YOUR_SERVER_IP, localhost {
 
 > **Important:** Replace YOUR_SERVER_IP with your server’s IP address or DNS hostname. This must match the hostname value in keycloak.conf (without the https:// prefix).
 
-> **Note:** The “tls internal” directive generates a self-signed certificate for initial testing. For production deployments with CA-issued certificates, see the Production Transition Guide. Including “localhost” allows access from the server itself during setup.
+> **Note:** The “tls internal” directive generates a self-signed certificate for initial testing. For production deployments with CA-issued certificates, see Section 12 (Install TLS Certificates). Including “localhost” allows access from the server itself during setup.
 
 ## 7. Register Windows Services
 
@@ -681,7 +681,7 @@ Test-NetConnection -ComputerName localhost -Port 443 | Select-Object TcpTestSucc
 
 5. After login, you should see the STIG Manager home page with the UNCLASSIFIED classification banner.
 
-> **Note:** These test accounts and passwords are defined in stigman-realm.json. Change all passwords before deploying to production. See the Production Transition Guide for the password change procedure.
+> **Note:** These test accounts and passwords are defined in stigman-realm.json. Change all passwords before deploying to production. See Section 14 (Change Default Passwords) for the procedure.
 
 ## 9. Troubleshooting
 
@@ -757,7 +757,7 @@ YOUR_SERVER_IP, localhost {
 
 ### ServiceWorker registration fails (code 18) from network clients
 
-This occurs when accessing the server with a self-signed certificate. Browsers block ServiceWorkers on untrusted HTTPS connections. The application still works but some caching features are unavailable. Install CA-issued certificates per the Production Transition Guide to resolve this.
+This occurs when accessing the server with a self-signed certificate. Browsers block ServiceWorkers on untrusted HTTPS connections. The application still works but some caching features are unavailable. Install CA-issued certificates per Section 12 to resolve this.
 
 ### STIG Manager can’t connect to Keycloak
 
@@ -827,33 +827,33 @@ After the Watcher authenticates to STIG Manager for the first time, its service 
 10. Get an access token for the Watcher client:
 
 ```
-$token = (Invoke-RestMethod -Uri ‘http://localhost:8080/realms/stigman/protocol/openid-connect/token’ `
-  -Method POST -Body @{grant_type=’client_credentials’; client_id=’stigman-watcher’; `
-  client_secret=’YOUR_CLIENT_SECRET’}).access_token
+$token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' `
+  -Method POST -Body @{grant_type='client_credentials'; client_id='stigman-watcher'; `
+  client_secret='YOUR_CLIENT_SECRET'}).access_token
 ```
 
 11. Trigger the Watcher’s first login to register its service account:
 
 ```
-Invoke-RestMethod -Uri ‘http://localhost:54000/api/user’ -Headers @{Authorization="Bearer $token"} -Method GET
+Invoke-RestMethod -Uri 'http://localhost:54000/api/user' -Headers @{Authorization="Bearer $token"} -Method GET
 ```
 
 12. Grant the Watcher Manage access (roleId 4) to your collection (replace 1 with your collectionId):
 
 ```
-Invoke-RestMethod -Uri ‘http://localhost:54000/api/collections/1/grants?elevate=true’ `
-  -Method POST -ContentType ‘application/json’ -Headers @{Authorization="Bearer $token"} `
-  -Body ‘[{"userId": "2", "roleId": 4}]’
+Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/1/grants?elevate=true' `
+  -Method POST -ContentType 'application/json' -Headers @{Authorization="Bearer $token"} `
+  -Body '[{"userId": "2", "roleId": 4}]'
 ```
 
-> **Note:** The userId for the Watcher service account is shown in the response from Step 2. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner.
+> **Note:** The userId for the Watcher service account is shown in the response from the previous command. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner.
 
 ### Step 10.4: Configure the Watcher
 
 Create the .env configuration file in the Watcher directory:
 
 ```
-Set-Content -Path C:\Services\stigman-watcher\.env -Value @’
+Set-Content -Path C:\Services\stigman-watcher\.env -Value @'
 WATCHER_ADD_EXISTING=true
 WATCHER_API_BASE=http://localhost:54000/api
 WATCHER_AUTHORITY=http://localhost:8080/realms/stigman
@@ -864,7 +864,7 @@ WATCHER_CLIENT_SECRET=YOUR_CLIENT_SECRET
 WATCHER_COLLECTION=1
 WATCHER_MODE=scan
 WATCHER_PATH=C:\Services\stigman-watcher\watched
-’@
+'@
 ```
 
 > **Important:** Replace YOUR_CLIENT_SECRET with the client secret from Step 10.2. Replace the WATCHER_COLLECTION value with the collectionId of your target collection.
@@ -966,7 +966,7 @@ WATCHER_PATH=\\fileserver\stigman-results
 
 By default, Windows services run as the Local System account, which has no access to network shares. You must change the service logon account to a domain account (or local account with network share permissions).
 
-17. Open Services (services.msc) or use PowerShell:
+Set the service logon account from PowerShell:
 
 ```
 # Set the service to run as a domain account
@@ -1139,21 +1139,24 @@ The test deployment uses local Keycloak user accounts. For production, configure
 
 **General Settings:**
 
-| Vendor | Active Directory |
+| Setting | Value |
 |----|----|
+| Vendor | Active Directory |
 | Edit Mode | `READ_ONLY` |
 
 **Connection Settings:**
 
-| Connection URL | `ldaps://dc01.yourdomain.mil:636` |
+| Setting | Value |
 |----|----|
+| Connection URL | `ldaps://dc01.yourdomain.mil:636` |
 | Bind DN | `CN=svc-stigman,OU=Service Accounts,DC=yourdomain,DC=mil` |
 | Bind Credential | (service account password) |
 
 **LDAP Searching and Updating:**
 
-| Users DN | `OU=Users,DC=yourdomain,DC=mil` |
+| Setting | Value |
 |----|----|
+| Users DN | `OU=Users,DC=yourdomain,DC=mil` |
 | Username LDAP attr | `sAMAccountName` |
 | RDN LDAP attr | `cn` |
 | UUID LDAP attr | `objectGUID` |
@@ -1456,7 +1459,7 @@ Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-T
 
 Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-\<oldver> folder can be archived or deleted; until then it is your rollback (re-register the service from the old folder and restart).
 
-## Appendix C: Architecture
+## Appendix A: Architecture
 
 All components run on a single Windows Server. Caddy is the only externally-facing service — it terminates TLS and routes requests to the backend services. All inter-service communication uses HTTP on localhost.
 
@@ -1490,7 +1493,7 @@ All components run on a single Windows Server. Caddy is the only externally-faci
 
 > **Note:** \*STIG Manager listens on 0.0.0.0:54000 but should only be accessed through Caddy. Consider adding a Windows Firewall rule to block direct access to port 54000 from external hosts.
 
-## Appendix A: Credentials Reference
+## Appendix B: Credentials Reference
 
 This table shows all accounts and the default test passwords used in this guide. Record any password changes you make during installation.
 
@@ -1504,9 +1507,9 @@ This table shows all accounts and the default test passwords used in this guide.
 | STIG Mgr User | stigman-user | `STIGman_User_2026!` | stigman-realm.json |
 | Watcher Client | stigman-watcher | `(generated secret)` | Keycloak + .env |
 
-> **Important:** Change ALL passwords before deploying to production. See the Production Transition Guide Section 4 for the step-by-step password change procedure.
+> **Important:** Change ALL passwords before deploying to production. See Section 14 for the step-by-step password change procedure.
 
-## Appendix B: Service Management Commands
+## Appendix C: Service Management Commands
 
 Common commands for managing the STIG Manager services. All commands require an elevated (Administrator) PowerShell.
 
