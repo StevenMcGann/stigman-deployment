@@ -220,8 +220,9 @@ Paste the following SQL commands. This guide uses the test passwords shown below
 ALTER USER 'root'@'localhost' IDENTIFIED BY 'STIGman_Root_2026!';
 ```
 
+**STIG Manager database and user:**
+
 ```
--- STIG Manager database and user
 CREATE DATABASE stigman CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 CREATE USER 'stigman'@'localhost' IDENTIFIED BY 'STIGman_DB_2026!';
 GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX,
@@ -230,8 +231,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX,
 GRANT SELECT ON performance_schema.* TO 'stigman'@'localhost';
 ```
 
+**Keycloak database and user:**
+
 ```
--- Keycloak database and user
 CREATE DATABASE keycloak CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 CREATE USER 'keycloak'@'localhost' IDENTIFIED BY 'Keycloak_DB_2026!';
 GRANT ALL PRIVILEGES ON keycloak.* TO 'keycloak'@'localhost';
@@ -362,18 +364,9 @@ Wait until you see "Keycloak started" in the console output (about 30–60 secon
 2. In a separate elevated PowerShell window, get an admin token:
 
 ```
-$body = @{
-  grant_type = 'password'
-  client_id  = 'admin-cli'
-  username   = 'admin'
-  password   = 'Admin_KC_2026!'
-}
-$token = Invoke-RestMethod -Uri 'http://localhost:8080/realms/master/protocol/openid-connect/token' `
-  -Method Post -Body $body -ContentType 'application/x-www-form-urlencoded'
-$headers = @{
-  Authorization  = 'Bearer ' + $token.access_token
-  'Content-Type' = 'application/json'
-}
+$body = @{ grant_type = 'password'; client_id = 'admin-cli'; username = 'admin'; password = 'Admin_KC_2026!' }
+$token = Invoke-RestMethod -Uri 'http://localhost:8080/realms/master/protocol/openid-connect/token' -Method Post -Body $body -ContentType 'application/x-www-form-urlencoded'
+$headers = @{ Authorization = 'Bearer ' + $token.access_token; 'Content-Type' = 'application/json' }
 ```
 
 3. Import the realm JSON file:
@@ -827,9 +820,7 @@ After the Watcher authenticates to STIG Manager for the first time, its service 
 10. Get an access token for the Watcher client:
 
 ```
-$token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' `
-  -Method POST -Body @{grant_type='client_credentials'; client_id='stigman-watcher'; `
-  client_secret='YOUR_CLIENT_SECRET'}).access_token
+$token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' -Method POST -Body @{ grant_type='client_credentials'; client_id='stigman-watcher'; client_secret='YOUR_CLIENT_SECRET' }).access_token
 ```
 
 11. Trigger the Watcher’s first login to register its service account:
@@ -841,19 +832,16 @@ Invoke-RestMethod -Uri 'http://localhost:54000/api/user' -Headers @{Authorizatio
 12. Grant the Watcher Manage access (roleId 4) to your collection (replace 1 with your collectionId):
 
 ```
-Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/1/grants?elevate=true' `
-  -Method POST -ContentType 'application/json' -Headers @{Authorization="Bearer $token"} `
-  -Body '[{"userId": "2", "roleId": 4}]'
+Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/1/grants?elevate=true' -Method POST -ContentType 'application/json' -Headers @{ Authorization = "Bearer $token" } -Body '[{"userId": "2", "roleId": 4}]'
 ```
 
 > **Note:** The userId for the Watcher service account is shown in the response from the previous command. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner.
 
 ### Step 10.4: Configure the Watcher
 
-Create the .env configuration file in the Watcher directory:
+Create the file C:\Services\stigman-watcher\.env with the following content:
 
 ```
-Set-Content -Path C:\Services\stigman-watcher\.env -Value @'
 WATCHER_ADD_EXISTING=true
 WATCHER_API_BASE=http://localhost:54000/api
 WATCHER_AUTHORITY=http://localhost:8080/realms/stigman
@@ -864,7 +852,6 @@ WATCHER_CLIENT_SECRET=YOUR_CLIENT_SECRET
 WATCHER_COLLECTION=1
 WATCHER_MODE=scan
 WATCHER_PATH=C:\Services\stigman-watcher\watched
-'@
 ```
 
 > **Important:** Replace YOUR_CLIENT_SECRET with the client secret from Step 10.2. Replace the WATCHER_COLLECTION value with the collectionId of your target collection.
@@ -1266,9 +1253,7 @@ Create a timestamped backup of the stigman schema. Run from an elevated PowerShe
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $dump = "C:\Backups\stigman-$stamp.sql"
 New-Item -ItemType Directory -Path C:\Backups -Force | Out-Null
-& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' `
-  -u root -p --databases stigman --routines --triggers --single-transaction `
-  --result-file=$dump
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' -u root -p --databases stigman --routines --triggers --single-transaction --result-file=$dump
 Write-Host "Backup written to $dump"
 ```
 
@@ -1386,9 +1371,7 @@ Security releases should be applied promptly. Back up the Keycloak config file a
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 Copy-Item C:\Services\keycloak-<oldver>\conf\keycloak.conf "C:\Backups\keycloak.conf.$stamp.bak"
 $env:MYSQL_PWD = '<mysql-root-password>'
-& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' `
-  -u root --databases keycloak --routines --triggers --single-transaction `
-  --result-file="C:\Backups\keycloak-db-$stamp.sql"
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' -u root --databases keycloak --routines --triggers --single-transaction --result-file="C:\Backups\keycloak-db-$stamp.sql"
 $env:MYSQL_PWD = $null
 ```
 
@@ -1396,8 +1379,7 @@ $env:MYSQL_PWD = $null
 
 ```
 $ver = '26.6.3'
-Invoke-WebRequest -Uri "https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip" `
-  -OutFile "C:\Installers\keycloak-$ver.zip"
+Invoke-WebRequest -Uri "https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip" -OutFile "C:\Installers\keycloak-$ver.zip"
 Expand-Archive "C:\Installers\keycloak-$ver.zip" -DestinationPath C:\Services
 ```
 

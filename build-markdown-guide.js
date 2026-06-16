@@ -124,8 +124,10 @@ for (const el of children) {
   // title page (centered paragraphs before any heading)
   if (!sawHeading && o.alignment === "center") { titleParas.push(plainText(runs)); continue; }
 
-  // code block lines (gray shading + Consolas)
-  if (o.shading && o.shading.fill === "F5F5F5") { endList(); codeBuf.push(plainText(runs)); continue; }
+  // code block lines (gray shading + Consolas). A merged code paragraph holds
+  // each line as its own run (joined by soft breaks in the .docx), so render one
+  // markdown line per run.
+  if (o.shading && o.shading.fill === "F5F5F5") { endList(); codeBuf.push(runs.map(r => (r.o && r.o.text) || "").join("\n")); continue; }
   flushCode();
 
   // Important callout (red-tinted shading)

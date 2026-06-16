@@ -13,8 +13,31 @@ const codeBlockProps = { shading: codeShade, spacing: { before: 40, after: 40 },
 const notePr = { font: "Calibri", size: 22, italics: true, color: "666666" };
 const importantPr = { font: "Calibri", size: 22, italics: true, color: "C00000" };
 
-function code(t) { return new Paragraph({ ...codeBlockProps, children: [new TextRun({ ...codePr, text: t })] }); }
-function codeComment(t) { return new Paragraph({ ...codeBlockProps, children: [new TextRun({ ...codePr, text: t, color: "808080" })] }); }
+function code(t) { const para = new Paragraph({ ...codeBlockProps, children: [new TextRun({ ...codePr, text: t })] }); para.__code = { text: t }; return para; }
+function codeComment(t) { const para = new Paragraph({ ...codeBlockProps, children: [new TextRun({ ...codePr, text: t, color: "808080" })] }); para.__code = { text: t, color: "808080" }; return para; }
+// Merge consecutive code()/codeComment() paragraphs into ONE shaded paragraph
+// whose lines are separated by soft line breaks (<w:br/>). A single paragraph
+// copies as one contiguous block, so the line breaks survive a paste into a
+// terminal or editor. Emitting each line as its own paragraph (the previous
+// approach) let some .docx viewers flatten the breaks to spaces on copy, which
+// silently broke multi-line commands — e.g. a leading "-- " SQL comment then
+// swallowed every statement below it, so the DB/user were never created and
+// MySQL reported no error.
+function mergeCodeBlocks(children) {
+  const out = [];
+  for (let i = 0; i < children.length; i++) {
+    const el = children[i];
+    if (el && el.__code) {
+      const group = [el.__code];
+      while (i + 1 < children.length && children[i + 1] && children[i + 1].__code) { group.push(children[++i].__code); }
+      const runs = group.map((g, idx) => new TextRun({ ...codePr, ...(g.color ? { color: g.color } : {}), ...(idx > 0 ? { break: 1 } : {}), text: g.text }));
+      out.push(new Paragraph({ ...codeBlockProps, children: runs }));
+    } else {
+      out.push(el);
+    }
+  }
+  return out;
+}
 function note(t) {
   return new Paragraph({ spacing: { before: 120, after: 120 }, indent: { left: 360 },
     children: [new TextRun({ ...notePr, bold: true, text: "Note: " }), new TextRun({ ...notePr, text: t })] });
@@ -112,7 +135,7 @@ const doc = new Document({
       children: [new TextRun({ text: "STIG Manager OSS — Installation & Production Transition Guide", size: 16, color: "999999" })] })] }) },
     footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER,
       children: [new TextRun({ text: "Page ", size: 16, color: "999999" }), new TextRun({ children: [PageNumber.CURRENT], size: 16, color: "999999" })] })] }) },
-    children: [
+    children: mergeCodeBlocks([
       // ── Title Page ──
       blank(), blank(), blank(),
       new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "STIG Manager OSS", bold: true, size: 56 })] }),
@@ -233,7 +256,7 @@ const doc = new Document({
       blank(),
       code("ALTER USER 'root'@'localhost' IDENTIFIED BY 'STIGman_Root_2026!';"),
       blank(),
-      codeComment("-- STIG Manager database and user"),
+      pBold("STIG Manager database and user:"),
       code("CREATE DATABASE stigman CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"),
       code("CREATE USER 'stigman'@'localhost' IDENTIFIED BY 'STIGman_DB_2026!';"),
       code("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX,"),
@@ -241,7 +264,7 @@ const doc = new Document({
       code("  EXECUTE, EVENT, CREATE TEMPORARY TABLES ON stigman.* TO 'stigman'@'localhost';"),
       code("GRANT SELECT ON performance_schema.* TO 'stigman'@'localhost';"),
       blank(),
-      codeComment("-- Keycloak database and user"),
+      pBold("Keycloak database and user:"),
       code("CREATE DATABASE keycloak CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;"),
       code("CREATE USER 'keycloak'@'localhost' IDENTIFIED BY 'Keycloak_DB_2026!';"),
       code("GRANT ALL PRIVILEGES ON keycloak.* TO 'keycloak'@'localhost';"),
@@ -345,18 +368,9 @@ const doc = new Document({
       p("Wait until you see \"Keycloak started\" in the console output (about 30–60 seconds)."),
       blank(),
       numItem3("In a separate elevated PowerShell window, get an admin token:"),
-      code("$body = @{"),
-      code("  grant_type = 'password'"),
-      code("  client_id  = 'admin-cli'"),
-      code("  username   = 'admin'"),
-      code("  password   = 'Admin_KC_2026!'"),
-      code("}"),
-      code("$token = Invoke-RestMethod -Uri 'http://localhost:8080/realms/master/protocol/openid-connect/token' `"),
-      code("  -Method Post -Body $body -ContentType 'application/x-www-form-urlencoded'"),
-      code("$headers = @{"),
-      code("  Authorization  = 'Bearer ' + $token.access_token"),
-      code("  'Content-Type' = 'application/json'"),
-      code("}"),
+      code("$body = @{ grant_type = 'password'; client_id = 'admin-cli'; username = 'admin'; password = 'Admin_KC_2026!' }"),
+      code("$token = Invoke-RestMethod -Uri 'http://localhost:8080/realms/master/protocol/openid-connect/token' -Method Post -Body $body -ContentType 'application/x-www-form-urlencoded'"),
+      code("$headers = @{ Authorization = 'Bearer ' + $token.access_token; 'Content-Type' = 'application/json' }"),
       blank(),
       numItem3("Import the realm JSON file:"),
       code("$realmJson = Get-Content C:\\Installers\\stigman-realm.json -Raw"),
@@ -724,21 +738,16 @@ const doc = new Document({
       p("After the Watcher authenticates to STIG Manager for the first time, its service account is registered. You must then grant it access to the target collection."),
       blank(),
       numItem7("Get an access token for the Watcher client:"),
-      code("$token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' `"),
-      code("  -Method POST -Body @{grant_type='client_credentials'; client_id='stigman-watcher'; `"),
-      code("  client_secret='YOUR_CLIENT_SECRET'}).access_token"),
+      code("$token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' -Method POST -Body @{ grant_type='client_credentials'; client_id='stigman-watcher'; client_secret='YOUR_CLIENT_SECRET' }).access_token"),
       numItem7("Trigger the Watcher’s first login to register its service account:"),
       code("Invoke-RestMethod -Uri 'http://localhost:54000/api/user' -Headers @{Authorization=\"Bearer $token\"} -Method GET"),
       numItem7("Grant the Watcher Manage access (roleId 4) to your collection (replace 1 with your collectionId):"),
-      code("Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/1/grants?elevate=true' `"),
-      code("  -Method POST -ContentType 'application/json' -Headers @{Authorization=\"Bearer $token\"} `"),
-      code("  -Body '[{\"userId\": \"2\", \"roleId\": 4}]'"),
+      code("Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/1/grants?elevate=true' -Method POST -ContentType 'application/json' -Headers @{ Authorization = \"Bearer $token\" } -Body '[{\"userId\": \"2\", \"roleId\": 4}]'"),
       note("The userId for the Watcher service account is shown in the response from the previous command. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner."),
       blank(),
 
       h2("Step 10.4: Configure the Watcher"),
-      p("Create the .env configuration file in the Watcher directory:"),
-      code("Set-Content -Path C:\\Services\\stigman-watcher\\.env -Value @'"),
+      p("Create the file C:\\Services\\stigman-watcher\\.env with the following content:"),
       code("WATCHER_ADD_EXISTING=true"),
       code("WATCHER_API_BASE=http://localhost:54000/api"),
       code("WATCHER_AUTHORITY=http://localhost:8080/realms/stigman"),
@@ -749,7 +758,6 @@ const doc = new Document({
       code("WATCHER_COLLECTION=1"),
       code("WATCHER_MODE=scan"),
       code("WATCHER_PATH=C:\\Services\\stigman-watcher\\watched"),
-      code("'@"),
       important("Replace YOUR_CLIENT_SECRET with the client secret from Step 10.2. Replace the WATCHER_COLLECTION value with the collectionId of your target collection."),
       blank(),
 
@@ -1100,9 +1108,7 @@ const doc = new Document({
       code("$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'"),
       code("$dump = \"C:\\Backups\\stigman-$stamp.sql\""),
       code("New-Item -ItemType Directory -Path C:\\Backups -Force | Out-Null"),
-      code("& 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqldump.exe' `"),
-      code("  -u root -p --databases stigman --routines --triggers --single-transaction `"),
-      code("  --result-file=$dump"),
+      code("& 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqldump.exe' -u root -p --databases stigman --routines --triggers --single-transaction --result-file=$dump"),
       code("Write-Host \"Backup written to $dump\""),
       note("--single-transaction takes a consistent snapshot without locking tables. --routines and --triggers ensure stored programs are included. You will be prompted for the MySQL root password."),
       blank(),
@@ -1179,16 +1185,13 @@ const doc = new Document({
       code("$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'"),
       code("Copy-Item C:\\Services\\keycloak-<oldver>\\conf\\keycloak.conf \"C:\\Backups\\keycloak.conf.$stamp.bak\""),
       code("$env:MYSQL_PWD = '<mysql-root-password>'"),
-      code("& 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqldump.exe' `"),
-      code("  -u root --databases keycloak --routines --triggers --single-transaction `"),
-      code("  --result-file=\"C:\\Backups\\keycloak-db-$stamp.sql\""),
+      code("& 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqldump.exe' -u root --databases keycloak --routines --triggers --single-transaction --result-file=\"C:\\Backups\\keycloak-db-$stamp.sql\""),
       code("$env:MYSQL_PWD = $null"),
       blank(),
 
       pBold("2. Download and extract the new version"),
       code("$ver = '26.6.3'"),
-      code("Invoke-WebRequest -Uri \"https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip\" `"),
-      code("  -OutFile \"C:\\Installers\\keycloak-$ver.zip\""),
+      code("Invoke-WebRequest -Uri \"https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip\" -OutFile \"C:\\Installers\\keycloak-$ver.zip\""),
       code("Expand-Archive \"C:\\Installers\\keycloak-$ver.zip\" -DestinationPath C:\\Services"),
       p("This creates C:\\Services\\keycloak-<newver>\\."),
       blank(),
@@ -1338,7 +1341,7 @@ const doc = new Document({
 
       pBold("Verify STIG Manager version:"),
       code("(Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition').info.version"),
-    ],
+    ]),
   }],
 });
 
