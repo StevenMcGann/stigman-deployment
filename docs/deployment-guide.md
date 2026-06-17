@@ -54,7 +54,7 @@
   - [STIG Manager can’t connect to Keycloak](#stig-manager-cant-connect-to-keycloak)
 - [10. STIG Manager Watcher (Optional)](#10-stig-manager-watcher-optional)
   - [Step 10.1: Extract Watcher](#step-101-extract-watcher)
-  - [Step 10.2: Create the Keycloak Watcher Client](#step-102-create-the-keycloak-watcher-client)
+  - [Step 10.2: Configure the Keycloak Watcher Client](#step-102-configure-the-keycloak-watcher-client)
   - [Step 10.3: Grant Watcher Collection Access](#step-103-grant-watcher-collection-access)
   - [Step 10.4: Configure the Watcher](#step-104-configure-the-watcher)
   - [Step 10.5: Test the Watcher](#step-105-test-the-watcher)
@@ -809,67 +809,57 @@ Expand-Archive -Path C:\Installers\stigman-watcher-win-1.6.9.zip -DestinationPat
 New-Item -ItemType Directory -Path C:\Services\stigman-watcher\watched -Force
 ```
 
-### Step 10.2: Create the Keycloak Watcher Client
+### Step 10.2: Configure the Keycloak Watcher Client
 
-The Watcher authenticates to STIG Manager using OIDC Client Credentials flow. You must create a confidential client in Keycloak.
+The realm import in Section 4.4 already created the stigman-watcher client for you. It is a confidential, service-accounts-only client with the required client scopes and the realm-roles protocol mapper preconfigured. You do not create it, and you do not add scopes or mappers — you only need to retrieve its client secret and grant its service account the STIG Manager roles.
 
-3. Open the Keycloak admin console in a browser:
+> **Note:** These steps follow the Keycloak 26 admin console. Older instructions to “Create client,” add Default client scopes, and add a mapper under a “Protocol mappers” tab no longer apply — the realm import already did all of that, and the client/scope layout differs in Keycloak 26.
+
+3. Open the Keycloak admin console and sign in with the Keycloak admin account (admin / the password from Step 4.3):
 
 ```
-https://YOUR_SERVER_IP/admin
+https://YOUR_SERVER_IP/admin/
 ```
 
-4. Navigate to the stigman realm, then Clients > Create client.
-5. Configure the client:
+> **Note:** If the browser shows “Cannot GET /admin,” your Caddyfile is missing the /admin route — add it per Section 6.2 and reload Caddy.
 
-- Client ID: stigman-watcher
-- Client authentication: ON (confidential)
-- Authentication flow: check only Service accounts roles
-- Uncheck Standard flow and Direct access grants
+4. At the top of the left sidebar, use the realm selector to switch from “Keycloak” (the master realm) to the stigman realm.
+5. Select Clients in the sidebar, then click stigman-watcher in the list.
+6. Open the Credentials tab. Next to Client Secret, click Regenerate and confirm, then copy the value. (The realm ships the sample secret “changeme”; regenerating gives your deployment a unique secret.) Keep this secret for Step 10.4.
+7. Open the Service accounts roles tab. Click Assign role; if the list shows only client roles, change the filter to “Filter by realm roles.” Select admin, user, and create_collection, then click Assign.
 
-6. After saving, go to the Credentials tab and copy the Client Secret.
-7. Go to the Client scopes tab. Add the following scopes as Default scopes:
-
-- openid
-- stig-manager:stig, stig-manager:stig:read, stig-manager:stig:write
-- stig-manager:collection
-- stig-manager:user, stig-manager:user:read
-- stig-manager:op
-
-8. Go to the Protocol mappers tab > Configure a new mapper > By configuration > User Realm Role. Configure:
-
-- Name: stigman-roles-mapper
-- Multivalued: ON
-- Token Claim Name: realm_access.roles
-- Add to ID token: ON, Add to access token: ON, Add to userinfo: ON
-
-> **Important:** The roles mapper is critical. Without it, the Watcher service account will authenticate but have no STIG Manager privileges.
-
-9. Go to Service account roles tab. Click Assign role and assign: admin, user, create_collection.
+> **Important:** The realm import does not assign the service-account roles, so this step is required. Without admin, user, and create_collection the Watcher authenticates but has no STIG Manager privileges. The mapper that carries these roles into the token is already configured by the import.
 
 ### Step 10.3: Grant Watcher Collection Access
 
-After the Watcher authenticates to STIG Manager for the first time, its service account is registered. You must then grant it access to the target collection.
+STIG Manager does not know about the Watcher's service account until it authenticates once. The flow below gets a token as the Watcher, makes one API call so STIG Manager registers the account (and returns its userId), finds the collection you want to populate, and grants the account access to it. Run these in an elevated PowerShell, one line at a time.
 
-10. Get an access token for the Watcher client:
+8. Get an access token for the Watcher, using the client secret from Step 10.2 (replace YOUR_CLIENT_SECRET):
 
 ```
 $token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' -Method POST -Body @{ grant_type='client_credentials'; client_id='stigman-watcher'; client_secret='YOUR_CLIENT_SECRET' }).access_token
 ```
 
-11. Trigger the Watcher’s first login to register its service account:
+9. Call the API once as the Watcher. This registers its service account and returns the userId you need below:
 
 ```
-Invoke-RestMethod -Uri 'http://localhost:54000/api/user' -Headers @{Authorization="Bearer $token"} -Method GET
+$me = Invoke-RestMethod -Uri 'http://localhost:54000/api/user' -Headers @{ Authorization = "Bearer $token" }; $me.userId
 ```
 
-12. Grant the Watcher Manage access (roleId 4) to your collection (replace 1 with your collectionId):
+10. Find the collectionId you want the Watcher to populate (if you have none yet, create a collection in the STIG Manager UI first). It is the number in the STIG Manager URL when the collection is open, or list collections with:
 
 ```
-Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/1/grants?elevate=true' -Method POST -ContentType 'application/json' -Headers @{ Authorization = "Bearer $token" } -Body '[{"userId": "2", "roleId": 4}]'
+Invoke-RestMethod -Uri 'http://localhost:54000/api/collections?elevate=true' -Headers @{ Authorization = "Bearer $token" } | Select-Object collectionId, name
 ```
 
-> **Note:** The userId for the Watcher service account is shown in the response from the previous command. The roleId values are: 1=Restricted, 2=Full, 3=Manage, 4=Owner.
+11. Build the grant body (it reuses the $me.userId captured above) and grant the Watcher Owner access to your collection. Replace COLLECTION_ID with the collectionId from the previous step:
+
+```
+$grant = '[{"userId":"' + $me.userId + '","roleId":4}]'
+Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/COLLECTION_ID/grants?elevate=true' -Method POST -ContentType 'application/json' -Headers @{ Authorization = "Bearer $token" } -Body $grant
+```
+
+> **Note:** Access levels (roleId): 1 = Restricted, 2 = Full, 3 = Manage, 4 = Owner. Owner lets the Watcher create assets and import results. Use 3 (Manage) if you prefer it cannot change collection grants.
 
 ### Step 10.4: Configure the Watcher
 
@@ -908,13 +898,13 @@ You should see successful authentication, API connection, and a scan that finish
 
 ### Step 10.6: Register Watcher as a Windows Service
 
-13. Copy the WinSW executable:
+12. Copy the WinSW executable:
 
 ```
 Copy-Item C:\Installers\WinSW-x64.exe C:\Services\stigman-watcher\stigman-watcher-svc.exe
 ```
 
-14. Copy the pre-built stigman-watcher-svc.xml from deliverables\service-configs, or create it manually:
+13. Copy the pre-built stigman-watcher-svc.xml from deliverables\service-configs, or create it manually:
 
 ```
 <service>
@@ -938,7 +928,7 @@ Copy-Item C:\Installers\WinSW-x64.exe C:\Services\stigman-watcher\stigman-watche
 
 > **Note:** The delayedAutoStart setting defers startup until after core services finish. The --retry-count 24 with --retry-interval 5000 gives the Watcher up to 2 minutes of retries, allowing STIG Manager and Keycloak time to fully initialize after a reboot.
 
-15. Register and start the service (elevated PowerShell):
+14. Register and start the service (elevated PowerShell):
 
 ```
 Push-Location C:\Services\stigman-watcher
@@ -947,7 +937,7 @@ Pop-Location
 Start-Service STIGManagerWatcher
 ```
 
-16. Verify the service is running:
+15. Verify the service is running:
 
 ```
 Get-Service STIGManagerWatcher | Format-Table Name, Status, StartType
