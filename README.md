@@ -33,12 +33,29 @@ Contents:
 **Maintenance (Section 16)**
 - Applying version updates: database backup, binary swap, automatic schema migration, verification, and rollback
 
-### Automation Scripts
+### Automated Installer (recommended)
+
+The stock Windows Server console (Windows PowerShell 5.1 / PSReadLine 2.0 in conhost) cannot reliably paste multi-line commands, so copy-pasting blocks from any guide — Word *or* Markdown — fails unpredictably. The `install/` folder sidesteps this entirely: edit one config file, then run scripts that perform the install with no pasting.
+
+| Script | Purpose |
+|--------|---------|
+| `install/stigman-config.ps1` | Your settings (server address, passwords, versions) — edit this first |
+| `install/Install-All.ps1` | Runs the whole Part I install (Sections 2–7) in order; safe to re-run |
+| `install/Initialize-MySql.ps1` | Installs/initializes MySQL and the MySQL84 service |
+| `install/Create-Databases.ps1` | Creates the `stigman` and `keycloak` databases and users |
+| `install/Install-Java.ps1` | Installs OpenJDK 17 and sets `JAVA_HOME` |
+| `install/Install-Keycloak.ps1` | Extracts Keycloak, writes `keycloak.conf`, bootstraps admin, builds |
+| `install/Install-StigManager.ps1` | Extracts STIG Manager, writes the service config |
+| `install/Install-Caddy.ps1` | Installs Caddy (.exe or .zip) and writes the Caddyfile |
+| `install/Register-Services.ps1` | Registers and starts all services (auto-detects the Keycloak version) |
+| `install/Import-Realm.ps1` | Waits for Keycloak and imports the STIG Manager realm |
+
+### Maintenance Scripts
 
 | Script | Purpose |
 |--------|---------|
 | `deliverables/register-services.cmd` | Registers all services, sets dependencies, starts the stack |
-| `deliverables/configure-hostname.cmd` | Updates hostname across all config files, rebuilds Keycloak |
+| `deliverables/Configure-Hostname.ps1` | Updates hostname across all config files, rebuilds Keycloak (version-agnostic) |
 | `deliverables/configure-tls.cmd` | Installs CA-issued certificates into Caddy |
 | `cleanup-all.ps1` | Tears down all components for a clean reinstall |
 
@@ -121,9 +138,15 @@ All components run on a single Windows Server. Caddy is the only externally-faci
 
 ## Getting Started
 
-1. Download the installer files listed in [Section 1 of the Deployment Guide](docs/deployment-guide.md#1-prerequisites-and-software-downloads)
-2. Follow the Deployment Guide from Section 2 onward
-3. After verification (Section 8), proceed to Part II for production hardening
+1. Download the installer files listed in [Section 1 of the Deployment Guide](docs/deployment-guide.md#1-prerequisites-and-software-downloads) and copy them to `C:\Installers`
+2. Edit `install\stigman-config.ps1` with your server address and passwords
+3. From an elevated PowerShell at the repo root, run:
+   ```
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Install-All.ps1
+   ```
+4. Verify per Section 8 of the guide, then proceed to Part II for production hardening
+
+> Prefer to do it by hand? Follow the Deployment Guide from Section 2 onward — but paste **one line at a time**, since the stock Windows console cannot reliably paste multi-line blocks.
 
 ## License
 

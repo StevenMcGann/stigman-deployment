@@ -222,6 +222,24 @@ const doc = new Document({
       p("Open port 443 for HTTPS access from network clients:"),
       code("New-NetFirewallRule -DisplayName 'STIG Manager HTTPS' -Direction Inbound -LocalPort 443 -Protocol TCP -Action Allow"),
       note("If your organization uses Group Policy to manage firewall rules, this may need to be done through GPO instead."),
+      blank(),
+
+      h2("Two Ways to Install: Scripts (Recommended) or Manual Steps"),
+      p("The stock Windows Server console (Windows PowerShell 5.1 with PSReadLine 2.0 in conhost) cannot reliably paste multi-line commands: a pasted block is often run one line at a time, and characters can be dropped or merged. This silently breaks multi-step commands such as the SQL in Section 2.3 — and it happens no matter whether you copy from the Word document or the Markdown guide, because the problem is the console doing the pasting, not the document."),
+      important("Because of this, the recommended way to install is to run the provided scripts, which perform every step with no copy-pasting. Use the manual steps only if you specifically want to perform each action yourself."),
+      blank(),
+      pBold("Scripted installation (recommended):"),
+      pRuns(
+        new TextRun("Step 1 — Edit "),
+        new TextRun({ text: "install\\stigman-config.ps1", font: "Consolas", size: 20 }),
+        new TextRun(" and set your server address and passwords:"),
+      ),
+      code("notepad install\\stigman-config.ps1"),
+      p("Step 2 — From an elevated (Administrator) PowerShell, run the installer:"),
+      code("powershell -NoProfile -ExecutionPolicy Bypass -File .\\install\\Install-All.ps1"),
+      p("The installer performs Sections 2 through 7 in order and is safe to re-run (each step skips work already done). When it finishes, continue at Section 8 (Verify the Installation)."),
+      note("Prefer to go step by step? Each phase also has its own script in the install\\ folder (Initialize-MySql.ps1, Create-Databases.ps1, Install-Java.ps1, Install-Keycloak.ps1, Install-StigManager.ps1, Install-Caddy.ps1, Register-Services.ps1, Import-Realm.ps1). Run them in that order, each as shown in Step 2."),
+      note("Sections 2–7 below document the same actions manually, for reference and troubleshooting. If you do follow them by hand, paste one line at a time — do not paste a whole block at once."),
       pb(),
 
       // ══════════════════════════════════════════════════
@@ -467,6 +485,7 @@ const doc = new Document({
       p("Create the Caddy directory and copy the executable:"),
       code("New-Item -ItemType Directory -Path C:\\Services\\caddy -Force"),
       code("Copy-Item C:\\Installers\\caddy_windows_amd64.exe C:\\Services\\caddy\\caddy.exe"),
+      note("Caddy's GitHub release is a .zip (e.g., caddy_2.11.4_windows_amd64.zip) that contains caddy.exe. If you downloaded the zip, extract it first and copy the caddy.exe inside it to C:\\Services\\caddy\\caddy.exe. The Install-Caddy.ps1 script handles either form automatically."),
       blank(),
 
       h2("Step 6.2: Create the Caddyfile"),
@@ -479,11 +498,14 @@ const doc = new Document({
       code("YOUR_SERVER_IP, localhost {"),
       code("    tls internal"),
       blank(),
-      codeComment("    # Keycloak authentication paths"),
+      codeComment("    # Keycloak paths (OIDC, login page resources, and admin console)"),
       code("    handle /realms/* {"),
       code("        reverse_proxy localhost:8080"),
       code("    }"),
       code("    handle /resources/* {"),
+      code("        reverse_proxy localhost:8080"),
+      code("    }"),
+      code("    handle /admin/* {"),
       code("        reverse_proxy localhost:8080"),
       code("    }"),
       blank(),
@@ -503,6 +525,7 @@ const doc = new Document({
       blank(),
       important("Replace YOUR_SERVER_IP with your server’s IP address or DNS hostname. This must match the hostname value in keycloak.conf (without the https:// prefix)."),
       note("The “tls internal” directive generates a self-signed certificate for initial testing. For production deployments with CA-issued certificates, see Section 12 (Install TLS Certificates). Including “localhost” allows access from the server itself during setup."),
+      important("The /admin route is required for the Keycloak admin console (used in Sections 10.2 and 13). Without it, browsing to https://YOUR_SERVER_IP/admin returns “Cannot GET /admin” because the request falls through to STIG Manager instead of Keycloak."),
       pb(),
 
       // ══════════════════════════════════════════════════

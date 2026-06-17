@@ -14,6 +14,7 @@
   - [Prepare the Working Directory](#prepare-the-working-directory)
   - [Directory Structure](#directory-structure)
   - [Open the Firewall](#open-the-firewall)
+  - [Two Ways to Install: Scripts (Recommended) or Manual Steps](#two-ways-to-install-scripts-recommended-or-manual-steps)
 - [2. Install MySQL 8.4](#2-install-mysql-84)
   - [Step 2.1: Run the MySQL Installer](#step-21-run-the-mysql-installer)
   - [Step 2.2: Initialize the Database](#step-22-initialize-the-database)
@@ -176,6 +177,32 @@ New-NetFirewallRule -DisplayName 'STIG Manager HTTPS' -Direction Inbound -LocalP
 ```
 
 > **Note:** If your organization uses Group Policy to manage firewall rules, this may need to be done through GPO instead.
+
+### Two Ways to Install: Scripts (Recommended) or Manual Steps
+
+The stock Windows Server console (Windows PowerShell 5.1 with PSReadLine 2.0 in conhost) cannot reliably paste multi-line commands: a pasted block is often run one line at a time, and characters can be dropped or merged. This silently breaks multi-step commands such as the SQL in Section 2.3 — and it happens no matter whether you copy from the Word document or the Markdown guide, because the problem is the console doing the pasting, not the document.
+
+> **Important:** Because of this, the recommended way to install is to run the provided scripts, which perform every step with no copy-pasting. Use the manual steps only if you specifically want to perform each action yourself.
+
+**Scripted installation (recommended):**
+
+Step 1 — Edit `install\stigman-config.ps1` and set your server address and passwords:
+
+```
+notepad install\stigman-config.ps1
+```
+
+Step 2 — From an elevated (Administrator) PowerShell, run the installer:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Install-All.ps1
+```
+
+The installer performs Sections 2 through 7 in order and is safe to re-run (each step skips work already done). When it finishes, continue at Section 8 (Verify the Installation).
+
+> **Note:** Prefer to go step by step? Each phase also has its own script in the install\ folder (Initialize-MySql.ps1, Create-Databases.ps1, Install-Java.ps1, Install-Keycloak.ps1, Install-StigManager.ps1, Install-Caddy.ps1, Register-Services.ps1, Import-Realm.ps1). Run them in that order, each as shown in Step 2.
+
+> **Note:** Sections 2–7 below document the same actions manually, for reference and troubleshooting. If you do follow them by hand, paste one line at a time — do not paste a whole block at once.
 
 ## 2. Install MySQL 8.4
 
@@ -481,6 +508,8 @@ New-Item -ItemType Directory -Path C:\Services\caddy -Force
 Copy-Item C:\Installers\caddy_windows_amd64.exe C:\Services\caddy\caddy.exe
 ```
 
+> **Note:** Caddy's GitHub release is a .zip (e.g., caddy_2.11.4_windows_amd64.zip) that contains caddy.exe. If you downloaded the zip, extract it first and copy the caddy.exe inside it to C:\Services\caddy\caddy.exe. The Install-Caddy.ps1 script handles either form automatically.
+
 ### Step 6.2: Create the Caddyfile
 
 Copy the pre-built Caddyfile or create `C:\Services\caddy\Caddyfile` with the following content:
@@ -491,11 +520,14 @@ YOUR_SERVER_IP, localhost {
 ```
 
 ```
-    # Keycloak authentication paths
+    # Keycloak paths (OIDC, login page resources, and admin console)
     handle /realms/* {
         reverse_proxy localhost:8080
     }
     handle /resources/* {
+        reverse_proxy localhost:8080
+    }
+    handle /admin/* {
         reverse_proxy localhost:8080
     }
 ```
@@ -521,6 +553,8 @@ YOUR_SERVER_IP, localhost {
 > **Important:** Replace YOUR_SERVER_IP with your server’s IP address or DNS hostname. This must match the hostname value in keycloak.conf (without the https:// prefix).
 
 > **Note:** The “tls internal” directive generates a self-signed certificate for initial testing. For production deployments with CA-issued certificates, see Section 12 (Install TLS Certificates). Including “localhost” allows access from the server itself during setup.
+
+> **Important:** The /admin route is required for the Keycloak admin console (used in Sections 10.2 and 13). Without it, browsing to https://YOUR_SERVER_IP/admin returns “Cannot GET /admin” because the request falls through to STIG Manager instead of Keycloak.
 
 ## 7. Register Windows Services
 

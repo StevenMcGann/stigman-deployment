@@ -13,6 +13,17 @@ taskkill /F /IM stig-manager-win.exe 2>nul
 taskkill /F /IM java.exe 2>nul
 timeout /t 3 /nobreak >nul
 
+REM Detect the Keycloak install folder (highest version present) so this script
+REM keeps working after a Keycloak version update.
+set "KCDIR="
+for /d %%d in ("C:\Services\keycloak-*") do set "KCDIR=%%d"
+if not defined KCDIR (
+    echo ERROR: No C:\Services\keycloak-* folder found. Install Keycloak first.
+    pause
+    exit /b 1
+)
+echo Using Keycloak folder: %KCDIR%
+
 REM ---- Step 1: Caddy ----
 echo.
 echo [1/5] Registering Caddy service...
@@ -23,17 +34,17 @@ REM ---- Step 2: Build Keycloak ----
 echo.
 echo [2/5] Building Keycloak for production...
 set "JAVA_HOME=C:\Program Files\Microsoft\jdk-17.0.19.10-hotspot"
-cd /d C:\Services\keycloak-26.6.2
+cd /d "%KCDIR%"
 call bin\kc.bat build
 
 REM ---- Step 3: Keycloak via WinSW ----
 echo.
 echo [3/5] Registering Keycloak service (WinSW)...
 REM Copy WinSW executable if not present
-if not exist "C:\Services\keycloak-26.6.2\keycloak-svc.exe" (
-    copy "C:\Services\stig-manager\stig-manager-svc.exe" "C:\Services\keycloak-26.6.2\keycloak-svc.exe"
+if not exist "%KCDIR%\keycloak-svc.exe" (
+    copy "C:\Services\stig-manager\stig-manager-svc.exe" "%KCDIR%\keycloak-svc.exe"
 )
-cd /d C:\Services\keycloak-26.6.2
+cd /d "%KCDIR%"
 keycloak-svc.exe install
 echo Verifying Keycloak service...
 sc.exe query Keycloak | findstr STATE

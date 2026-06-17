@@ -1,11 +1,14 @@
 YOUR_SERVER_IP, localhost {
 	tls internal
 
-	# Keycloak paths (OIDC and login page resources only)
+	# Keycloak paths (OIDC, login page resources, and admin console)
 	handle /realms/* {
 		reverse_proxy localhost:8080
 	}
 	handle /resources/* {
+		reverse_proxy localhost:8080
+	}
+	handle /admin/* {
 		reverse_proxy localhost:8080
 	}
 
