@@ -50,7 +50,7 @@
   - [Browser shows ‘Invalid scopes’ error](#browser-shows-invalid-scopes-error)
   - [Keycloak redirects to HTTPS but page doesn’t load](#keycloak-redirects-to-https-but-page-doesnt-load)
   - [ERR_SSL_PROTOCOL_ERROR from network clients](#err_ssl_protocol_error-from-network-clients)
-  - [ServiceWorker registration fails (code 18) from network clients](#serviceworker-registration-fails-code-18-from-network-clients)
+  - [STIG Manager hangs at “Authorizing” (ServiceWorker SecurityError, code 18)](#stig-manager-hangs-at-authorizing-serviceworker-securityerror-code-18)
   - [STIG Manager can’t connect to Keycloak](#stig-manager-cant-connect-to-keycloak)
 - [10. STIG Manager Watcher (Optional)](#10-stig-manager-watcher-optional)
   - [Step 10.1: Prerequisites](#step-101-prerequisites)
@@ -693,8 +693,15 @@ Test-NetConnection -ComputerName localhost -Port 443 | Select-Object TcpTestSucc
 
 ### Step 8.3: Access STIG Manager
 
-1. Open a web browser and navigate to https://YOUR_SERVER_IP/
-2. If using self-signed certificates (tls internal), your browser will show a security warning. Click Advanced and proceed to accept the certificate.
+1. Trust Caddy's self-signed root CA so the browser accepts the certificate (skip if you installed a CA-issued certificate per Section 12). Without this, STIG Manager's web client cannot register its ServiceWorker and the app hangs at "Authorizing" with a SecurityError, code 18 — clicking through the browser warning is not enough. From an elevated PowerShell at the repo root, run:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Trust-CaddyCert.ps1
+```
+
+> **Note:** For network clients (browsing from another machine), copy C:\Services\caddy\caddy-root-ca.crt (exported by the script) to each client and import it into the Local Machine "Trusted Root Certification Authorities" store, or install a CA-issued certificate per Section 12.
+
+2. Open a web browser (fully close and reopen it if it was already running) and navigate to https://YOUR_SERVER_IP/
 3. You will see the Keycloak login page branded “STIG Manager”.
 4. Log in with one of the test accounts from stigman-realm.json:
 
@@ -779,9 +786,15 @@ The Caddyfile address must include your server’s IP or hostname. If it only sa
 YOUR_SERVER_IP, localhost {
 ```
 
-### ServiceWorker registration fails (code 18) from network clients
+### STIG Manager hangs at “Authorizing” (ServiceWorker SecurityError, code 18)
 
-This occurs when accessing the server with a self-signed certificate. Browsers block ServiceWorkers on untrusted HTTPS connections. The application still works but some caching features are unavailable. Install CA-issued certificates per Section 12 to resolve this.
+STIG Manager's web client registers a ServiceWorker, and browsers refuse to register one when the site's certificate is not trusted. With the default self-signed certificate this blocks the app: it stays on “Authorizing” and shows a SecurityError with code 18. Clicking through the browser's certificate warning is not enough. Fix it by trusting Caddy's internal root CA, then fully closing and reopening the browser:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Trust-CaddyCert.ps1
+```
+
+The script imports Caddy's root CA into the Local Machine Trusted Root store and exports a copy to C:\Services\caddy\caddy-root-ca.crt for network clients (import that file into their Trusted Root store). For production, install a CA-issued certificate instead (Section 12) — domain-joined clients then trust it automatically.
 
 ### STIG Manager can’t connect to Keycloak
 

@@ -637,8 +637,10 @@ const doc = new Document({
       blank(),
 
       h2("Step 8.3: Access STIG Manager"),
-      numItem5("Open a web browser and navigate to https://YOUR_SERVER_IP/"),
-      numItem5("If using self-signed certificates (tls internal), your browser will show a security warning. Click Advanced and proceed to accept the certificate."),
+      numItem5("Trust Caddy's self-signed root CA so the browser accepts the certificate (skip if you installed a CA-issued certificate per Section 12). Without this, STIG Manager's web client cannot register its ServiceWorker and the app hangs at \"Authorizing\" with a SecurityError, code 18 — clicking through the browser warning is not enough. From an elevated PowerShell at the repo root, run:"),
+      code("powershell -NoProfile -ExecutionPolicy Bypass -File .\\install\\Trust-CaddyCert.ps1"),
+      note("For network clients (browsing from another machine), copy C:\\Services\\caddy\\caddy-root-ca.crt (exported by the script) to each client and import it into the Local Machine \"Trusted Root Certification Authorities\" store, or install a CA-issued certificate per Section 12."),
+      numItem5("Open a web browser (fully close and reopen it if it was already running) and navigate to https://YOUR_SERVER_IP/"),
       numItem5("You will see the Keycloak login page branded “STIG Manager”."),
       numItem5("Log in with one of the test accounts from stigman-realm.json:"),
       blank(),
@@ -707,8 +709,10 @@ const doc = new Document({
       code("YOUR_SERVER_IP, localhost {"),
       blank(),
 
-      h2("ServiceWorker registration fails (code 18) from network clients"),
-      p("This occurs when accessing the server with a self-signed certificate. Browsers block ServiceWorkers on untrusted HTTPS connections. The application still works but some caching features are unavailable. Install CA-issued certificates per Section 12 to resolve this."),
+      h2("STIG Manager hangs at “Authorizing” (ServiceWorker SecurityError, code 18)"),
+      p("STIG Manager's web client registers a ServiceWorker, and browsers refuse to register one when the site's certificate is not trusted. With the default self-signed certificate this blocks the app: it stays on “Authorizing” and shows a SecurityError with code 18. Clicking through the browser's certificate warning is not enough. Fix it by trusting Caddy's internal root CA, then fully closing and reopening the browser:"),
+      code("powershell -NoProfile -ExecutionPolicy Bypass -File .\\install\\Trust-CaddyCert.ps1"),
+      p("The script imports Caddy's root CA into the Local Machine Trusted Root store and exports a copy to C:\\Services\\caddy\\caddy-root-ca.crt for network clients (import that file into their Trusted Root store). For production, install a CA-issued certificate instead (Section 12) — domain-joined clients then trust it automatically."),
       blank(),
 
       h2("STIG Manager can’t connect to Keycloak"),
