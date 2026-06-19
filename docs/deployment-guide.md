@@ -84,6 +84,9 @@
   - [Step 16.7: Verify and Restart the Watcher](#step-167-verify-and-restart-the-watcher)
   - [Step 16.8: Rollback (If Needed)](#step-168-rollback-if-needed)
   - [Step 16.9: Updating Keycloak](#step-169-updating-keycloak)
+- [17. Customize the Home Page (Optional)](#17-customize-the-home-page-optional)
+  - [What you can set](#what-you-can-set)
+  - [Run the script](#run-the-script)
 - [Appendix A: Architecture](#appendix-a-architecture)
 - [Appendix B: Credentials Reference](#appendix-b-credentials-reference)
 - [Appendix C: Service Management Commands](#appendix-c-service-management-commands)
@@ -1366,6 +1369,34 @@ Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-T
 ```
 
 Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-\<oldver> folder can be archived or deleted; until then it is your rollback (re-register the service from the old folder and restart).
+
+## 17. Customize the Home Page (Optional)
+
+STIG Manager's Home tab shows a Welcome widget you can brand with your organization's logo, a title, a message, and a link. These come from STIGMAN_CLIENT_\* environment variables that the service reads from stig-manager-svc.xml. Because the config is loaded by the Windows service, edit it with the Set-HomePage.ps1 script, which updates the service config and restarts STIG Manager for you — no hand-editing XML or restarting services manually.
+
+### What you can set
+
+- Title — the Welcome widget heading (STIGMAN_CLIENT_WELCOME_TITLE)
+- Message — body text, for example a usage policy or point-of-contact information (STIGMAN_CLIENT_WELCOME_MESSAGE)
+- Link — an optional hyperlink shown after the message (STIGMAN_CLIENT_WELCOME_LINK)
+- Logo — an image shown in the widget, scaled to a maximum of 125 pixels (STIGMAN_CLIENT_WELCOME_IMAGE)
+- Classification banner — one of NONE, U, CUI, C, S, TS, or SCI (STIGMAN_CLASSIFICATION)
+
+> **Note:** The logo is referenced by URL — STIG Manager does not store the image itself. Set-HomePage.ps1 self-hosts it through Caddy (the Caddyfile includes a /branding route), so you do not need a separate web server.
+
+### Run the script
+
+From an elevated PowerShell at the repo root, pass the values you want. This is a single line — do not break it:
+
+```
+.\install\Set-HomePage.ps1 -Title "ACME Cyber Operations" -Message "Authorized use only. SOC: soc@acme.example, x1234." -Link "https://intranet.acme.example/cyber" -LogoFile "C:\branding\acme-logo.png"
+```
+
+The script copies your logo into C:\Services\caddy\branding, points the Welcome image at https://YOUR_SERVER_IP/branding/\<file>, writes the other values into stig-manager-svc.xml, and restarts the service. When it finishes, hard-refresh the Home tab in the browser (Ctrl+F5) to see the changes.
+
+> **Note:** Provide only the parameters you want to change; omit the rest. Pass an empty value (for example -Title "") to clear a setting back to its default. To use an image you already host, use -LogoUrl "https://..." instead of -LogoFile. To change the logo later, re-run with a new -LogoFile, or just replace C:\Services\caddy\branding\logo.\<ext>.
+
+> **Important:** The logo URL must be reachable from each user's browser. The default https://YOUR_SERVER_IP/branding/... works once the certificate is trusted (Step 8.3). If you would rather not host the image at all, set STIGMAN_CLIENT_WELCOME_IMAGE to a data URI (data:image/png;base64,...) in stig-manager-svc.xml instead.
 
 ## Appendix A: Architecture
 

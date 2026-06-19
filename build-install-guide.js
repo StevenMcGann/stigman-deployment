@@ -1181,6 +1181,29 @@ const doc = new Document({
       pb(),
 
       // ══════════════════════════════════════════════════
+      // Section 17: Customize the Home Page
+      // ══════════════════════════════════════════════════
+      h1("17. Customize the Home Page (Optional)"),
+      p("STIG Manager's Home tab shows a Welcome widget you can brand with your organization's logo, a title, a message, and a link. These come from STIGMAN_CLIENT_* environment variables that the service reads from stig-manager-svc.xml. Because the config is loaded by the Windows service, edit it with the Set-HomePage.ps1 script, which updates the service config and restarts STIG Manager for you — no hand-editing XML or restarting services manually."),
+      blank(),
+      h2("What you can set"),
+      bullet("Title — the Welcome widget heading (STIGMAN_CLIENT_WELCOME_TITLE)"),
+      bullet("Message — body text, for example a usage policy or point-of-contact information (STIGMAN_CLIENT_WELCOME_MESSAGE)"),
+      bullet("Link — an optional hyperlink shown after the message (STIGMAN_CLIENT_WELCOME_LINK)"),
+      bullet("Logo — an image shown in the widget, scaled to a maximum of 125 pixels (STIGMAN_CLIENT_WELCOME_IMAGE)"),
+      bullet("Classification banner — one of NONE, U, CUI, C, S, TS, or SCI (STIGMAN_CLASSIFICATION)"),
+      note("The logo is referenced by URL — STIG Manager does not store the image itself. Set-HomePage.ps1 self-hosts it through Caddy (the Caddyfile includes a /branding route), so you do not need a separate web server."),
+      blank(),
+      h2("Run the script"),
+      p("From an elevated PowerShell at the repo root, pass the values you want. This is a single line — do not break it:"),
+      code(".\\install\\Set-HomePage.ps1 -Title \"ACME Cyber Operations\" -Message \"Authorized use only. SOC: soc@acme.example, x1234.\" -Link \"https://intranet.acme.example/cyber\" -LogoFile \"C:\\branding\\acme-logo.png\""),
+      p("The script copies your logo into C:\\Services\\caddy\\branding, points the Welcome image at https://YOUR_SERVER_IP/branding/<file>, writes the other values into stig-manager-svc.xml, and restarts the service. When it finishes, hard-refresh the Home tab in the browser (Ctrl+F5) to see the changes."),
+      blank(),
+      note("Provide only the parameters you want to change; omit the rest. Pass an empty value (for example -Title \"\") to clear a setting back to its default. To use an image you already host, use -LogoUrl \"https://...\" instead of -LogoFile. To change the logo later, re-run with a new -LogoFile, or just replace C:\\Services\\caddy\\branding\\logo.<ext>."),
+      important("The logo URL must be reachable from each user's browser. The default https://YOUR_SERVER_IP/branding/... works once the certificate is trusted (Step 8.3). If you would rather not host the image at all, set STIGMAN_CLIENT_WELCOME_IMAGE to a data URI (data:image/png;base64,...) in stig-manager-svc.xml instead."),
+      pb(),
+
+      // ══════════════════════════════════════════════════
       // Appendix C: Architecture
       // ══════════════════════════════════════════════════
       h1("Appendix A: Architecture"),

@@ -116,6 +116,12 @@ $ServerIp, localhost {
 		}
 	}
 
+	# Branding assets for the Home page (drop your logo in C:\Services\caddy\branding)
+	handle_path /branding/* {
+		root * C:\Services\caddy\branding
+		file_server
+	}
+
 	# Static assets and web UI
 	handle {
 		reverse_proxy localhost:54000
