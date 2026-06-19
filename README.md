@@ -49,6 +49,7 @@ The stock Windows Server console (Windows PowerShell 5.1 / PSReadLine 2.0 in con
 | `install/Install-Caddy.ps1` | Installs Caddy (.exe or .zip) and writes the Caddyfile |
 | `install/Register-Services.ps1` | Registers and starts all services (auto-detects the Keycloak version) |
 | `install/Import-Realm.ps1` | Waits for Keycloak and imports the STIG Manager realm |
+| `install/Install-Watcher.ps1` | Installs and configures the optional Watcher (roles, secret, collection grant, service) — no console steps |
 
 ### Maintenance Scripts
 

@@ -53,14 +53,11 @@
   - [ServiceWorker registration fails (code 18) from network clients](#serviceworker-registration-fails-code-18-from-network-clients)
   - [STIG Manager can’t connect to Keycloak](#stig-manager-cant-connect-to-keycloak)
 - [10. STIG Manager Watcher (Optional)](#10-stig-manager-watcher-optional)
-  - [Step 10.1: Extract Watcher](#step-101-extract-watcher)
-  - [Step 10.2: Configure the Keycloak Watcher Client](#step-102-configure-the-keycloak-watcher-client)
-  - [Step 10.3: Grant Watcher Collection Access](#step-103-grant-watcher-collection-access)
-  - [Step 10.4: Configure the Watcher](#step-104-configure-the-watcher)
-  - [Step 10.5: Test the Watcher](#step-105-test-the-watcher)
-  - [Step 10.6: Register Watcher as a Windows Service](#step-106-register-watcher-as-a-windows-service)
-  - [Step 10.7: Using the Watcher](#step-107-using-the-watcher)
-  - [Step 10.8: Watching a Network Share (Optional)](#step-108-watching-a-network-share-optional)
+  - [Step 10.1: Prerequisites](#step-101-prerequisites)
+  - [Step 10.2: Install and Configure the Watcher](#step-102-install-and-configure-the-watcher)
+  - [Step 10.3: Verify the Watcher](#step-103-verify-the-watcher)
+  - [Step 10.4: Using the Watcher](#step-104-using-the-watcher)
+  - [Step 10.5: Watching a Network Share (Optional)](#step-105-watching-a-network-share-optional)
 - [11. Configure Server Hostname](#11-configure-server-hostname)
   - [Files to Update](#files-to-update)
   - [Automated Method](#automated-method)
@@ -794,156 +791,48 @@ Verify the STIGMAN_OIDC_PROVIDER environment variable in stig-manager-svc.xml po
 
 STIG Manager Watcher is a companion utility that monitors a directory for STIG assessment files (.ckl, .cklb, or XCCDF XML) and automatically uploads them to a STIG Manager collection. This enables automated workflows where scanning tools drop results into a folder and Watcher handles the import.
 
-### Step 10.1: Extract Watcher
+### Step 10.1: Prerequisites
 
-1. Create the Watcher directory and extract the archive:
+Two things must be in place before the Watcher can import results:
 
-```
-New-Item -ItemType Directory -Path C:\Services\stigman-watcher -Force
-Expand-Archive -Path C:\Installers\stigman-watcher-win-1.6.9.zip -DestinationPath C:\Services\stigman-watcher
-```
+- **A STIG library.** STIG Manager creates review results only for STIGs that are loaded in its library, and a fresh install has none. Import the DISA STIG Library in the STIG Manager web UI (sign in as an admin, then use the STIG Library / Application Management area to import the manual STIG .zip files). Until the matching STIGs are loaded, the Watcher still creates assets from your scans, but with no reviews attached.
+- **A collection.** Create the collection the Watcher will populate in the STIG Manager UI (Collections > Create Collection). Creating it yourself means you own it and can see the imported assets. Note the collection name for the next step.
 
-2. Create the watched directory:
+> **Important:** STIG Manager does not accept SCAP Compliance Checker (SCC) benchmark content as a STIG library; importing it returns 'SCAP Benchmarks are not imported'. The STIG definitions must come from the DISA STIG Library (manual STIG .zip files). Your scan results (.ckl, .cklb, or XCCDF results XML) are what the Watcher imports.
 
-```
-New-Item -ItemType Directory -Path C:\Services\stigman-watcher\watched -Force
-```
+### Step 10.2: Install and Configure the Watcher
 
-### Step 10.2: Configure the Keycloak Watcher Client
+Install-Watcher.ps1 performs every setup step that previously required the Keycloak admin console and multi-line API calls. It extracts the Watcher, assigns the watcher service-account roles in Keycloak (the realm import does not assign them), regenerates the client secret, registers the service account in STIG Manager, grants it access to your collection, writes the .env file, and registers and starts the Windows service.
 
-The realm import in Section 4.4 already created the stigman-watcher client for you. It is a confidential, service-accounts-only client with the required client scopes and the realm-roles protocol mapper preconfigured. You do not create it, and you do not add scopes or mappers — you only need to retrieve its client secret and grant its service account the STIG Manager roles.
-
-> **Note:** These steps follow the Keycloak 26 admin console. Older instructions to “Create client,” add Default client scopes, and add a mapper under a “Protocol mappers” tab no longer apply — the realm import already did all of that, and the client/scope layout differs in Keycloak 26.
-
-3. Open the Keycloak admin console and sign in with the Keycloak admin account (admin / the password from Step 4.3):
+From an elevated PowerShell at the repo root, run the command below — replace the collection name with the one you created in Step 10.1:
 
 ```
-https://YOUR_SERVER_IP/admin/
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Install-Watcher.ps1 -CollectionName "My Collection"
 ```
 
-> **Note:** If the browser shows “Cannot GET /admin,” your Caddyfile is missing the /admin route — add it per Section 6.2 and reload Caddy.
+> **Note:** Settings (server address, passwords) come from install\stigman-config.ps1 — the same file used by the main installer, so there is nothing else to edit.
 
-4. At the top of the left sidebar, use the realm selector to switch from “Keycloak” (the master realm) to the stigman realm.
-5. Select Clients in the sidebar, then click stigman-watcher in the list.
-6. Open the Credentials tab. Next to Client Secret, click Regenerate and confirm, then copy the value. (The realm ships the sample secret “changeme”; regenerating gives your deployment a unique secret.) Keep this secret for Step 10.4.
-7. Open the Service accounts roles tab. Click Assign role; if the list shows only client roles, change the filter to “Filter by realm roles.” Select admin, user, and create_collection, then click Assign.
+> **Note:** If the collection does not exist yet, either create it in the UI first (recommended, so you own it and can see the imports) or add -CreateCollection to have the script create it. A script-created collection is owned by the watcher service account only, so you would then need to grant your own account access in the UI to view it.
 
-> **Important:** The realm import does not assign the service-account roles, so this step is required. Without admin, user, and create_collection the Watcher authenticates but has no STIG Manager privileges. The mapper that carries these roles into the token is already configured by the import.
+### Step 10.3: Verify the Watcher
 
-### Step 10.3: Grant Watcher Collection Access
-
-STIG Manager does not know about the Watcher's service account until it authenticates once. The flow below gets a token as the Watcher, makes one API call so STIG Manager registers the account (and returns its userId), finds the collection you want to populate, and grants the account access to it. Run these in an elevated PowerShell, one line at a time.
-
-8. Get an access token for the Watcher, using the client secret from Step 10.2 (replace YOUR_CLIENT_SECRET):
-
-```
-$token = (Invoke-RestMethod -Uri 'http://localhost:8080/realms/stigman/protocol/openid-connect/token' -Method POST -Body @{ grant_type='client_credentials'; client_id='stigman-watcher'; client_secret='YOUR_CLIENT_SECRET' }).access_token
-```
-
-9. Call the API once as the Watcher. This registers its service account and returns the userId you need below:
-
-```
-$me = Invoke-RestMethod -Uri 'http://localhost:54000/api/user' -Headers @{ Authorization = "Bearer $token" }; $me.userId
-```
-
-10. Find the collectionId you want the Watcher to populate (if you have none yet, create a collection in the STIG Manager UI first). It is the number in the STIG Manager URL when the collection is open, or list collections with:
-
-```
-Invoke-RestMethod -Uri 'http://localhost:54000/api/collections?elevate=true' -Headers @{ Authorization = "Bearer $token" } | Select-Object collectionId, name
-```
-
-11. Build the grant body (it reuses the $me.userId captured above) and grant the Watcher Owner access to your collection. Replace COLLECTION_ID with the collectionId from the previous step:
-
-```
-$grant = '[{"userId":"' + $me.userId + '","roleId":4}]'
-Invoke-RestMethod -Uri 'http://localhost:54000/api/collections/COLLECTION_ID/grants?elevate=true' -Method POST -ContentType 'application/json' -Headers @{ Authorization = "Bearer $token" } -Body $grant
-```
-
-> **Note:** Access levels (roleId): 1 = Restricted, 2 = Full, 3 = Manage, 4 = Owner. Owner lets the Watcher create assets and import results. Use 3 (Manage) if you prefer it cannot change collection grants.
-
-### Step 10.4: Configure the Watcher
-
-Create the file C:\Services\stigman-watcher\.env with the following content:
-
-```
-WATCHER_ADD_EXISTING=true
-WATCHER_API_BASE=http://localhost:54000/api
-WATCHER_AUTHORITY=http://localhost:8080/realms/stigman
-WATCHER_CARGO_DELAY=2000
-WATCHER_CARGO_SIZE=25
-WATCHER_CLIENT_ID=stigman-watcher
-WATCHER_CLIENT_SECRET=YOUR_CLIENT_SECRET
-WATCHER_COLLECTION=1
-WATCHER_MODE=scan
-WATCHER_PATH=C:\Services\stigman-watcher\watched
-```
-
-> **Important:** Replace YOUR_CLIENT_SECRET with the client secret from Step 10.2. Replace the WATCHER_COLLECTION value with the collectionId of your target collection.
-
-### Step 10.5: Test the Watcher
-
-Run a one-shot test from the Watcher directory to verify connectivity:
-
-```
-Push-Location C:\Services\stigman-watcher
-.\stigman-watcher-win.exe --one-shot --log-level verbose
-Pop-Location
-```
-
-You should see successful authentication, API connection, and a scan that finishes with no work to do (if the watched directory is empty). The key messages to look for:
-
-- preflight API version — confirms API connectivity
-- preflight token request succeeded — confirms Keycloak authentication
-- preflight api requests succeeded — confirms collection access
-
-### Step 10.6: Register Watcher as a Windows Service
-
-12. Copy the WinSW executable:
-
-```
-Copy-Item C:\Installers\WinSW-x64.exe C:\Services\stigman-watcher\stigman-watcher-svc.exe
-```
-
-13. Copy the pre-built stigman-watcher-svc.xml from deliverables\service-configs, or create it manually:
-
-```
-<service>
-  <id>STIGManagerWatcher</id>
-  <name>STIG Manager Watcher</name>
-  <description>STIG Manager Watcher - auto-uploads STIG results</description>
-  <executable>%BASE%\stigman-watcher-win.exe</executable>
-  <arguments>--mode scan --retry-count 24 --retry-interval 5000</arguments>
-  <workingdirectory>%BASE%</workingdirectory>
-  <startmode>Automatic</startmode>
-  <delayedAutoStart>true</delayedAutoStart>
-  <log mode="roll-by-size">
-    <sizeThreshold>10240</sizeThreshold>
-    <keepFiles>3</keepFiles>
-  </log>
-  <depend>STIGManager</depend>
-  <depend>Keycloak</depend>
-  <depend>MySQL84</depend>
-</service>
-```
-
-> **Note:** The delayedAutoStart setting defers startup until after core services finish. The --retry-count 24 with --retry-interval 5000 gives the Watcher up to 2 minutes of retries, allowing STIG Manager and Keycloak time to fully initialize after a reboot.
-
-14. Register and start the service (elevated PowerShell):
-
-```
-Push-Location C:\Services\stigman-watcher
-.\stigman-watcher-svc.exe install
-Pop-Location
-Start-Service STIGManagerWatcher
-```
-
-15. Verify the service is running:
+Confirm the service is running and check its log:
 
 ```
 Get-Service STIGManagerWatcher | Format-Table Name, Status, StartType
+Get-Content C:\Services\stigman-watcher\stigman-watcher-svc.out.log -Tail 30
 ```
 
-### Step 10.7: Using the Watcher
+The key success messages in the log are:
+
+- preflight token request succeeded — confirms Keycloak authentication
+- preflight api requests succeeded — confirms collection access
+
+> **Note:** Install-Watcher.ps1 regenerates the watcher client secret on each run and writes it to C:\Services\stigman-watcher\.env. Treat that file as a secret.
+
+> **Note:** Prefer to set the Watcher up by hand? The script is recommended because the token and grant API calls are multi-line and do not paste reliably into the stock Windows console. The manual equivalent is: in Keycloak assign the stigman-watcher service-account roles (admin, user, create_collection) and regenerate its client secret; then, authenticated as that client, call GET /api/user (registers the account) and POST /api/collections/{id}/grants?elevate=true to grant it; finally write the .env and register the service with WinSW.
+
+### Step 10.4: Using the Watcher
 
 To import STIG assessment results, simply drop .ckl, .cklb, or XCCDF XML files into the watched directory:
 
@@ -959,7 +848,7 @@ To view Watcher logs:
 Get-Content C:\Services\stigman-watcher\stigman-watcher-svc.out.log -Tail 50
 ```
 
-### Step 10.8: Watching a Network Share (Optional)
+### Step 10.5: Watching a Network Share (Optional)
 
 In production environments, you may want the Watcher to monitor a network share instead of a local directory. This allows scanning tools on other systems to drop results to a central location for automatic import.
 
