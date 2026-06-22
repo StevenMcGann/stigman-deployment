@@ -739,6 +739,8 @@ const doc = new Document({
       code("powershell -NoProfile -ExecutionPolicy Bypass -File .\\install\\Install-Watcher.ps1 -CollectionName \"My Collection\""),
       note("Settings (server address, passwords) come from install\\stigman-config.ps1 — the same file used by the main installer, so there is nothing else to edit."),
       note("If the collection does not exist yet, either create it in the UI first (recommended, so you own it and can see the imports) or add -CreateCollection to have the script create it. A script-created collection is owned by the watcher service account only, so you would then need to grant your own account access in the UI to view it."),
+      note("Watched folder: the Watcher monitors C:\\Services\\stigman-watcher\\watched by default. To use a different folder, add -WatchPath \"D:\\scans\". For a network share, see Step 10.5."),
+      important("The script signs in to Keycloak using the admin credentials in stigman-config.ps1. If you have changed the Keycloak admin password (for example during hardening), the sign-in fails with a credentials error — re-run with -AdminPassword \"<your-admin-password>\" (and -AdminUser \"<name>\" if it is not admin), or update the values in stigman-config.ps1."),
       blank(),
 
       h2("Step 10.3: Verify the Watcher"),
@@ -749,6 +751,7 @@ const doc = new Document({
       bullet("preflight token request succeeded — confirms Keycloak authentication"),
       bullet("preflight api requests succeeded — confirms collection access"),
       note("Install-Watcher.ps1 regenerates the watcher client secret on each run and writes it to C:\\Services\\stigman-watcher\\.env. Treat that file as a secret."),
+      note("When checking connectivity by hand, some normal responses can look like errors: http://localhost:8080/ returns a redirect (302), and http://localhost:54000/api returns {\"error\": \"not found\"} because nothing is mapped to the bare path. The real health checks are http://localhost:8080/realms/stigman (200) and http://localhost:54000/api/op/configuration (200)."),
       note("Prefer to set the Watcher up by hand? The script is recommended because the token and grant API calls are multi-line and do not paste reliably into the stock Windows console. The manual equivalent is: in Keycloak assign the stigman-watcher service-account roles (admin, user, create_collection) and regenerate its client secret; then, authenticated as that client, call GET /api/user (registers the account) and POST /api/collections/{id}/grants?elevate=true to grant it; finally write the .env and register the service with WinSW."),
       blank(),
 

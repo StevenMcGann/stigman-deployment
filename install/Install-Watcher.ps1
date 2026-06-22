@@ -17,12 +17,18 @@ param(
     [string]$CollectionName = 'Watcher Imports',
     [int]$RoleId = 4,                         # 1=Restricted 2=Full 3=Manage 4=Owner
     [switch]$CreateCollection,                # auto-create the collection if it does not exist
-    [string]$WatchPath
+    [string]$WatchPath,                       # folder the Watcher monitors (default C:\Services\stigman-watcher\watched)
+    [string]$AdminUser,                       # overrides $KeycloakAdminUser from stigman-config.ps1
+    [string]$AdminPassword                    # overrides $KeycloakAdminPassword from stigman-config.ps1
 )
 
 . "$PSScriptRoot\stigman-config.ps1"
 . "$PSScriptRoot\stigman-lib.ps1"
 Assert-Admin
+# Parameter overrides win over the values dot-sourced from the config file, so a
+# changed/hardened Keycloak admin password can be supplied without editing config.
+if ($AdminUser)     { $KeycloakAdminUser = $AdminUser }
+if ($AdminPassword) { $KeycloakAdminPassword = $AdminPassword }
 
 $kc  = 'http://localhost:8080'
 $api = 'http://localhost:54000/api'
@@ -49,8 +55,18 @@ Write-Ok "Watched folder: $WatchPath"
 
 # ---- 2. Keycloak: assign service-account roles + regenerate secret ----
 Write-Step "Configuring the Keycloak watcher client"
-$admTok = (Invoke-RestMethod -Uri "$kc/realms/master/protocol/openid-connect/token" -Method Post -ContentType 'application/x-www-form-urlencoded' `
-    -Body @{ grant_type='password'; client_id='admin-cli'; username=$KeycloakAdminUser; password=$KeycloakAdminPassword }).access_token
+Write-Note "Signing in to Keycloak as '$KeycloakAdminUser'"
+$admTok = $null
+try {
+    $admTok = (Invoke-RestMethod -Uri "$kc/realms/master/protocol/openid-connect/token" -Method Post -ContentType 'application/x-www-form-urlencoded' `
+        -Body @{ grant_type='password'; client_id='admin-cli'; username=$KeycloakAdminUser; password=$KeycloakAdminPassword }).access_token
+} catch {
+    Fail ("Keycloak admin login failed as '$KeycloakAdminUser' ($($_.Exception.Message)). " +
+          "These must match your Keycloak admin account. If you changed the admin password, either update " +
+          "`$KeycloakAdminUser / `$KeycloakAdminPassword in install\stigman-config.ps1, or re-run with " +
+          "-AdminUser <name> -AdminPassword <password>.")
+}
+if (-not $admTok) { Fail "Keycloak returned no admin token. Check the admin credentials in stigman-config.ps1." }
 $h = @{ Authorization = "Bearer $admTok" }
 $client = Invoke-RestMethod -Uri "$kc/admin/realms/stigman/clients?clientId=stigman-watcher" -Headers $h
 if (-not $client) { Fail "stigman-watcher client not found. Import the realm first (Section 4.4 / Import-Realm.ps1)." }
@@ -113,7 +129,10 @@ Write-Ok ".env written (collection $collectionId)"
 
 # ---- 6. Register + start the Windows service ----
 Write-Step "Registering the Watcher service"
-Copy-Item (Join-Path $InstallersDir 'WinSW-x64.exe') (Join-Path $watchDir 'stigman-watcher-svc.exe') -Force
+$svcExe = Join-Path $watchDir 'stigman-watcher-svc.exe'
+# Don't recopy the WinSW wrapper if it's already there - on a re-run the running
+# service has it locked, and it's the same binary anyway.
+if (-not (Test-Path $svcExe)) { Copy-Item (Join-Path $InstallersDir 'WinSW-x64.exe') $svcExe -Force }
 $svcXmlSrc = Join-Path $ServiceConfigsDir 'stigman-watcher-svc.xml'
 if (Test-Path $svcXmlSrc) { Copy-Item $svcXmlSrc (Join-Path $watchDir 'stigman-watcher-svc.xml') -Force }
 else { Fail "stigman-watcher-svc.xml not found at $svcXmlSrc" }
