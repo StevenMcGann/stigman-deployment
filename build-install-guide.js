@@ -724,6 +724,8 @@ const doc = new Document({
       // ══════════════════════════════════════════════════
       h1("10. STIG Manager Watcher (Optional)"),
       p("STIG Manager Watcher is a companion utility that monitors a directory for STIG assessment files (.ckl, .cklb, or XCCDF XML) and automatically uploads them to a STIG Manager collection. This enables automated workflows where scanning tools drop results into a folder and Watcher handles the import."),
+      p("How it works: the Watcher runs as a Windows service in scan mode. Every few minutes it scans its watched folder, uploads any new result files to its assigned collection (creating Assets and STIG assignments as needed), and records what it has processed in watcher-history.txt so the same file is not imported twice. Each Watcher instance authenticates to STIG Manager as the stigman-watcher service account using OIDC client credentials."),
+      note("For the complete list of Watcher options and behaviors, see the official STIG Manager Watcher wiki: https://github.com/NUWCDIVNPT/stigman-watcher/wiki — the install\\Install-Watcher.ps1 script in this package configures the common case for you."),
       blank(),
 
       h2("Step 10.1: Prerequisites"),
@@ -734,9 +736,10 @@ const doc = new Document({
       blank(),
 
       h2("Step 10.2: Install and Configure the Watcher"),
-      p("Install-Watcher.ps1 performs every setup step that previously required the Keycloak admin console and multi-line API calls. It extracts the Watcher, assigns the watcher service-account roles in Keycloak (the realm import does not assign them), regenerates the client secret, registers the service account in STIG Manager, grants it access to your collection, writes the .env file, and registers and starts the Windows service."),
+      p("Install-Watcher.ps1 performs every setup step that previously required the Keycloak admin console and multi-line API calls. It extracts the Watcher, assigns the watcher service-account roles in Keycloak (the realm import does not assign them), sets the client secret (reusing the existing one so multiple Watchers stay in sync), registers the service account in STIG Manager, grants it Manage on your collection, writes the .env file, and registers and starts the Windows service."),
       p("From an elevated PowerShell at the repo root, run the command below — replace the collection name with the one you created in Step 10.1:"),
       code("powershell -NoProfile -ExecutionPolicy Bypass -File .\\install\\Install-Watcher.ps1 -CollectionName \"My Collection\""),
+      important("The Watcher needs at least Manage access on the collection to import — Full is not enough, because importing creates Assets and STIG assignments. The script grants Manage automatically and will raise an existing too-low grant. To grant Owner instead, add -RoleId 4 (1=Restricted, 2=Full, 3=Manage, 4=Owner)."),
       note("Settings (server address, passwords) come from install\\stigman-config.ps1 — the same file used by the main installer, so there is nothing else to edit."),
       note("If the collection does not exist yet, either create it in the UI first (recommended, so you own it and can see the imports) or add -CreateCollection to have the script create it. A script-created collection is owned by the watcher service account only, so you would then need to grant your own account access in the UI to view it."),
       note("Watched folder: the Watcher monitors C:\\Services\\stigman-watcher\\watched by default. To use a different folder, add -WatchPath \"D:\\scans\". For a network share, see Step 10.5."),
@@ -804,6 +807,16 @@ const doc = new Document({
       blank(),
 
       important("If the network share becomes unavailable (server offline, network issue), the Watcher will log errors and retry based on the --retry-count and --retry-interval settings. The default is 5 retries at 5-second intervals before the Watcher exits. When running as a service, WinSW will restart it automatically."),
+      blank(),
+
+      h2("Step 10.6: Running Multiple Watchers (Optional)"),
+      p("You can run more than one Watcher when different folders should feed different collections — for example a separate import pipeline per system, team, or scan type. Each Watcher is its own Windows service with its own watched folder and target collection; they all share the single stigman-watcher Keycloak client."),
+      p("Run Install-Watcher.ps1 once per collection, giving each a unique -InstanceName. The name is appended to the service and folder so they do not collide. Each is a single line:"),
+      code("powershell -NoProfile -ExecutionPolicy Bypass -File .\\install\\Install-Watcher.ps1 -InstanceName \"Web\" -CollectionName \"Web Servers\" -WatchPath \"D:\\scans\\web\""),
+      code("powershell -NoProfile -ExecutionPolicy Bypass -File .\\install\\Install-Watcher.ps1 -InstanceName \"DB\" -CollectionName \"Databases\" -WatchPath \"D:\\scans\\db\""),
+      p("That creates two services — STIGManagerWatcher-Web and STIGManagerWatcher-DB — under C:\\Services\\stigman-watcher-Web and C:\\Services\\stigman-watcher-DB, each importing its own folder into its own collection. The default instance (no -InstanceName) stays the service STIGManagerWatcher in C:\\Services\\stigman-watcher."),
+      note("All instances reuse the same client secret, so adding or re-running one Watcher does not invalidate the others. Each target collection must already exist (or pass -CreateCollection), and give each instance a separate watched folder so a file imports into only one collection."),
+      note("Manage them like any service: Get-Service STIGManagerWatcher* lists them all; Restart-Service STIGManagerWatcher-Web restarts one; logs are in each instance's folder (stigman-watcher-svc.out.log)."),
       pb(),
 
       // ══════════════════════════════════════════════════════════════

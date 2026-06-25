@@ -165,6 +165,17 @@ function Set-TextFile {
     [System.IO.File]::WriteAllText($Path, $Content, (New-Object System.Text.UTF8Encoding($false)))
 }
 
+# GET a JSON-array API endpoint and return it as a proper PowerShell array.
+# Works around a Windows PowerShell 5.1 quirk where Invoke-RestMethod can
+# collapse an array of like-shaped objects into one object with array-valued
+# properties. Parsing the raw body with ConvertFrom-Json avoids that.
+function Get-ApiArray {
+    param([Parameter(Mandatory)][string]$Uri, [Parameter(Mandatory)][hashtable]$Headers)
+    $raw = (Invoke-WebRequest -Uri $Uri -Headers $Headers -UseBasicParsing).Content
+    if (-not $raw) { return @() }
+    return @(ConvertFrom-Json $raw)
+}
+
 # Query helper: returns mysql output lines (batch mode, no headers).
 function Get-MySqlRows {
     param(

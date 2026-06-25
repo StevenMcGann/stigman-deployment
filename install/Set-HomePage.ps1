@@ -62,6 +62,36 @@ if ($LogoFile) {
     Copy-Item $LogoFile (Join-Path $brand $name) -Force
     Write-Note "Logo copied to $brand\$name (served by Caddy at /branding/$name)"
     Set-SvcEnv 'STIGMAN_CLIENT_WELCOME_IMAGE' "https://$ServerIp/branding/$name"
+
+    # Make sure Caddy actually serves /branding. Installs that predate this
+    # feature won't have the route, so the logo would 404 even though the file
+    # and the env var are correct. Add the route if missing, then reload Caddy.
+    $caddyfile = Join-Path $ServicesDir 'caddy\Caddyfile'
+    if (Test-Path $caddyfile) {
+        $lines = Get-Content $caddyfile
+        if (($lines -join "`n") -notmatch '/branding') {
+            $out = New-Object System.Collections.Generic.List[string]
+            $inserted = $false
+            foreach ($ln in $lines) {
+                if (-not $inserted -and $ln -match '^\s*handle\s*\{\s*$') {
+                    $out.Add("`t# Branding assets for the Home page (logo for the Welcome widget)")
+                    $out.Add("`thandle_path /branding/* {")
+                    $out.Add("`t`troot * C:\Services\caddy\branding")
+                    $out.Add("`t`tfile_server")
+                    $out.Add("`t}")
+                    $out.Add("")
+                    $inserted = $true
+                }
+                $out.Add($ln)
+            }
+            if ($inserted) { Set-Content $caddyfile $out -Encoding utf8; Write-Ok "Added the /branding route to the Caddyfile" }
+            else { Write-Warn2 "Could not find the catch-all 'handle {' block to add the /branding route. Add it manually (guide Section 17)." }
+        }
+        try {
+            Invoke-WebRequest -Uri 'http://localhost:2019/load' -Method POST -Body (Get-Content $caddyfile -Raw) -ContentType 'text/caddyfile' -UseBasicParsing | Out-Null
+            Write-Ok "Caddy reloaded (now serving /branding)"
+        } catch { Write-Warn2 "Caddy reload failed ($($_.Exception.Message)); restart the Caddy service to apply." }
+    }
 } elseif ($LogoUrl) {
     Set-SvcEnv 'STIGMAN_CLIENT_WELCOME_IMAGE' $LogoUrl
 }

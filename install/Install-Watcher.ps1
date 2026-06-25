@@ -1,25 +1,31 @@
-# Installs and fully configures the STIG Manager Watcher (Section 10) with no
-# manual console clicking and no copy-pasting. It:
-#   - extracts the Watcher
+# Installs and fully configures a STIG Manager Watcher service (Section 10) with
+# no manual console clicking and no copy-pasting. It:
+#   - extracts the Watcher into its own folder
 #   - assigns the watcher service-account roles in Keycloak (the realm import
 #     does NOT assign them)
-#   - regenerates the client secret and captures it
+#   - reuses the client secret (regenerates it only if it is still the default)
 #   - registers the service account in STIG Manager
-#   - creates the target collection (if needed) and grants the watcher access
+#   - grants the watcher Manage on the target collection (enough to import;
+#     created with -CreateCollection, otherwise it must already exist)
 #   - writes the .env, then registers and starts the Windows service
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-Watcher.ps1
-#   powershell ... -File .\Install-Watcher.ps1 -CollectionName "My Collection"
+#   # default instance, existing collection:
+#   .\install\Install-Watcher.ps1 -CollectionName "My Collection"
 #
-# Safe to re-run: roles, secret, collection, and grant are reconciled each time.
+#   # a second watcher for a different collection/folder (run multiple times,
+#   # once per collection, each with a unique -InstanceName):
+#   .\install\Install-Watcher.ps1 -InstanceName "Web" -CollectionName "Web Servers" -WatchPath "D:\scans\web"
+#
+# Safe to re-run: roles, secret, collection grant, and service are reconciled.
 
 param(
     [string]$CollectionName = 'Watcher Imports',
-    [int]$RoleId = 4,                         # 1=Restricted 2=Full 3=Manage 4=Owner
-    [switch]$CreateCollection,                # auto-create the collection if it does not exist
-    [string]$WatchPath,                       # folder the Watcher monitors (default C:\Services\stigman-watcher\watched)
-    [string]$AdminUser,                       # overrides $KeycloakAdminUser from stigman-config.ps1
-    [string]$AdminPassword                    # overrides $KeycloakAdminPassword from stigman-config.ps1
+    [int]$RoleId = 3,                          # collection access: 1=Restricted 2=Full 3=Manage 4=Owner (Manage is the minimum that can import)
+    [switch]$CreateCollection,                 # auto-create the collection if it does not exist
+    [string]$InstanceName = '',                # suffix for running multiple watchers (folder + service get this suffix)
+    [string]$WatchPath,                        # folder the Watcher monitors (default <instance folder>\watched)
+    [string]$AdminUser,                        # overrides $KeycloakAdminUser from stigman-config.ps1
+    [string]$AdminPassword                     # overrides $KeycloakAdminPassword from stigman-config.ps1
 )
 
 . "$PSScriptRoot\stigman-config.ps1"
@@ -32,8 +38,15 @@ if ($AdminPassword) { $KeycloakAdminPassword = $AdminPassword }
 
 $kc  = 'http://localhost:8080'
 $api = 'http://localhost:54000/api'
-$watchDir = Join-Path $ServicesDir 'stigman-watcher'
+
+# Per-instance naming so multiple watchers can coexist.
+$InstanceName = $InstanceName -replace '[^A-Za-z0-9]', ''
+$suffix   = if ($InstanceName) { "-$InstanceName" } else { '' }
+$watchDir = Join-Path $ServicesDir "stigman-watcher$suffix"
+$svcId    = "STIGManagerWatcher$suffix"
+$svcName  = if ($InstanceName) { "STIG Manager Watcher ($InstanceName)" } else { "STIG Manager Watcher" }
 if (-not $WatchPath) { $WatchPath = Join-Path $watchDir 'watched' }
+if ($InstanceName) { Write-Note "Instance '$InstanceName' -> service $svcId, folder $watchDir" }
 
 # ---- 1. Extract the Watcher ----
 Write-Step "Extracting the STIG Manager Watcher"
@@ -53,7 +66,7 @@ if (Test-Path (Join-Path $watchDir 'stigman-watcher-win.exe')) {
 New-Item -ItemType Directory -Path $WatchPath -Force | Out-Null
 Write-Ok "Watched folder: $WatchPath"
 
-# ---- 2. Keycloak: assign service-account roles + regenerate secret ----
+# ---- 2. Keycloak: assign service-account roles + resolve the client secret ----
 Write-Step "Configuring the Keycloak watcher client"
 Write-Note "Signing in to Keycloak as '$KeycloakAdminUser'"
 $admTok = $null
@@ -77,8 +90,15 @@ $reps = @(); foreach ($r in 'admin','user','create_collection') {
 Invoke-RestMethod -Uri "$kc/admin/realms/stigman/users/$($sa.id)/role-mappings/realm" -Method Post -Headers $h `
     -Body ($reps | ConvertTo-Json) -ContentType 'application/json' | Out-Null
 Write-Ok "Service-account roles assigned: admin, user, create_collection"
-$secret = (Invoke-RestMethod -Uri "$kc/admin/realms/stigman/clients/$($client.id)/client-secret" -Method Post -Headers $h).value
-Write-Ok "Client secret regenerated."
+# Reuse the current secret so additional watcher instances don't invalidate each
+# other's .env; regenerate only if it is still the shipped default.
+$secret = (Invoke-RestMethod -Uri "$kc/admin/realms/stigman/clients/$($client.id)/client-secret" -Headers $h).value
+if (-not $secret -or $secret -eq 'changeme') {
+    $secret = (Invoke-RestMethod -Uri "$kc/admin/realms/stigman/clients/$($client.id)/client-secret" -Method Post -Headers $h).value
+    Write-Ok "Client secret generated (replaced the default)."
+} else {
+    Write-Ok "Reusing the existing client secret (shared by all watcher instances)."
+}
 
 # ---- 3. Register the service account in STIG Manager ----
 Write-Step "Registering the watcher service account in STIG Manager"
@@ -88,25 +108,39 @@ $wh = @{ Authorization = "Bearer $wtok" }
 $me = Invoke-RestMethod -Uri "$api/user" -Headers $wh
 Write-Ok "Watcher userId: $($me.userId)"
 
-# ---- 4. Locate the collection and grant the watcher access ----
+# ---- 4. Locate the collection and ensure the watcher's grant ----
 # By default the collection must already exist (create it in the STIG Manager UI
 # so YOUR account owns it and you can see the imports). -CreateCollection will
 # auto-create one, but then only the watcher can see it until an admin grants
 # their own account.
 Write-Step "Locating collection '$CollectionName'"
-$col = Invoke-RestMethod -Uri "$api/collections?elevate=true" -Headers $wh | Where-Object { $_.name -eq $CollectionName } | Select-Object -First 1
+$col = Get-ApiArray -Uri "$api/collections?elevate=true" -Headers $wh | Where-Object { $_.name -eq $CollectionName } | Select-Object -First 1
 if (-not $col) {
     if (-not $CreateCollection) {
         Fail "Collection '$CollectionName' not found. Create it in the STIG Manager UI first (you will be its owner so you can view the imports), then re-run. To auto-create it instead, add -CreateCollection."
     }
     $body = @{ name=$CollectionName; description='STIG Manager Watcher target'; grants=@(@{ userId="$($me.userId)"; roleId=$RoleId }) } | ConvertTo-Json -Depth 6
     $col = Invoke-RestMethod -Uri "$api/collections?elevate=true" -Method Post -Headers $wh -Body $body -ContentType 'application/json'
-    Write-Ok "Created collection (collectionId $($col.collectionId))"
-    Write-Warn2 "The collection is owned by the watcher service account only. To view it in the STIG Manager UI, open it as an admin and grant your own account access."
+    Write-Ok "Created collection (collectionId $($col.collectionId)) with the watcher granted roleId $RoleId"
+    Write-Warn2 "The collection is owned by the watcher service account only. To view it in the UI, open it as an admin and grant your own account access."
 } else {
-    Write-Ok "Found collection (collectionId $($col.collectionId)); granting the watcher"
-    $grant = '[{"userId":"' + $me.userId + '","roleId":' + $RoleId + '}]'
-    try { Invoke-RestMethod -Uri "$api/collections/$($col.collectionId)/grants?elevate=true" -Method Post -Headers $wh -Body $grant -ContentType 'application/json' | Out-Null } catch { }
+    Write-Ok "Found collection (collectionId $($col.collectionId))"
+    $meUserId  = [string]$me.userId
+    $grantList = Get-ApiArray -Uri "$api/collections/$($col.collectionId)/grants?elevate=true" -Headers $wh
+    $existing  = $null
+    foreach ($g in $grantList) { if (([string]$g.user.userId) -eq $meUserId) { $existing = $g; break } }
+    if (-not $existing) {
+        Invoke-RestMethod -Uri "$api/collections/$($col.collectionId)/grants?elevate=true" -Method Post -Headers $wh `
+            -Body ("[{`"userId`":`"$meUserId`",`"roleId`":$RoleId}]") -ContentType 'application/json' | Out-Null
+        Write-Ok "Granted the watcher roleId $RoleId (Manage)"
+    } elseif ([int][string]$existing.roleId -lt $RoleId) {
+        # Raise an existing too-low grant (e.g. Full=2) so the watcher can import.
+        Invoke-RestMethod -Uri "$api/collections/$($col.collectionId)/grants/$($existing.grantId)?elevate=true" -Method Put -Headers $wh `
+            -Body (@{ userId=$meUserId; roleId=$RoleId } | ConvertTo-Json) -ContentType 'application/json' | Out-Null
+        Write-Ok "Raised the watcher grant from roleId $($existing.roleId) to $RoleId (Manage)"
+    } else {
+        Write-Ok "Watcher already has sufficient access (roleId $($existing.roleId))"
+    }
 }
 $collectionId = $col.collectionId
 
@@ -128,21 +162,39 @@ Set-TextFile -Path (Join-Path $watchDir '.env') -Content $envText
 Write-Ok ".env written (collection $collectionId)"
 
 # ---- 6. Register + start the Windows service ----
-Write-Step "Registering the Watcher service"
+Write-Step "Registering the Watcher service ($svcId)"
 $svcExe = Join-Path $watchDir 'stigman-watcher-svc.exe'
 # Don't recopy the WinSW wrapper if it's already there - on a re-run the running
 # service has it locked, and it's the same binary anyway.
 if (-not (Test-Path $svcExe)) { Copy-Item (Join-Path $InstallersDir 'WinSW-x64.exe') $svcExe -Force }
-$svcXmlSrc = Join-Path $ServiceConfigsDir 'stigman-watcher-svc.xml'
-if (Test-Path $svcXmlSrc) { Copy-Item $svcXmlSrc (Join-Path $watchDir 'stigman-watcher-svc.xml') -Force }
-else { Fail "stigman-watcher-svc.xml not found at $svcXmlSrc" }
-if (-not (Get-Service STIGManagerWatcher -ErrorAction SilentlyContinue)) {
-    & (Join-Path $watchDir 'stigman-watcher-svc.exe') install | Out-Null
-    & sc.exe config STIGManagerWatcher depend= MySQL84/Keycloak/STIGManager | Out-Null
+# Generate the WinSW config with this instance's service id/name.
+$svcXmlText = @"
+<service>
+  <id>$svcId</id>
+  <name>$svcName</name>
+  <description>STIG Manager Watcher - auto-uploads STIG results to collection $collectionId</description>
+  <executable>%BASE%\stigman-watcher-win.exe</executable>
+  <arguments>--mode scan --retry-count 24 --retry-interval 5000</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>3</keepFiles>
+  </log>
+  <depend>STIGManager</depend>
+  <depend>Keycloak</depend>
+  <depend>MySQL84</depend>
+</service>
+"@
+Set-TextFile -Path (Join-Path $watchDir 'stigman-watcher-svc.xml') -Content $svcXmlText
+if (-not (Get-Service $svcId -ErrorAction SilentlyContinue)) {
+    & $svcExe install | Out-Null
+    & sc.exe config $svcId depend= MySQL84/Keycloak/STIGManager | Out-Null
 }
-Restart-Service STIGManagerWatcher -ErrorAction SilentlyContinue
-Start-Service STIGManagerWatcher -ErrorAction SilentlyContinue
-Write-Ok "STIGManagerWatcher is $((Get-Service STIGManagerWatcher).Status)"
+Restart-Service $svcId -ErrorAction SilentlyContinue
+if ((Get-Service $svcId).Status -ne 'Running') { Start-Service $svcId -ErrorAction SilentlyContinue }
+Write-Ok "$svcId is $((Get-Service $svcId).Status)"
 
 Write-Step "Watcher ready."
 Write-Host @"
