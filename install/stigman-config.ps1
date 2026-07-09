@@ -25,7 +25,7 @@ $InstallersDir = 'C:\Installers'   # where you copied the downloaded files (Sect
 $ServicesDir   = 'C:\Services'     # install root for all components
 
 # ---- Versions (match the files you downloaded in Section 1) -----
-$KeycloakVersion = '26.6.4'
+$KeycloakVersion = '26.7.0'
 $StigmanVersion  = '1.6.13'
 
 # ---- Tool locations (defaults match the guide) -----------------
