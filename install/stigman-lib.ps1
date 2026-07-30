@@ -97,6 +97,14 @@ function New-Caddyfile {
 $ServerIp, localhost {
 	tls internal
 
+	# HSTS: instruct browsers to only connect over HTTPS (Nessus: "HSTS Missing
+	# From HTTPS Server"). Browsers apply this per hostname (ignored for raw IP
+	# access) and it hard-blocks certificate errors, so clients must trust the
+	# serving CA (see Trust-CaddyCert.ps1 / your CA-issued certificate).
+	# The "?" sets the header only when the upstream didn't already send one
+	# (Keycloak sends its own HSTS header; without "?" those responses carry it twice).
+	header ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
 	# Keycloak paths (OIDC, login page resources, and admin console)
 	handle /realms/* {
 		reverse_proxy localhost:8080

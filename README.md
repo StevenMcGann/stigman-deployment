@@ -18,7 +18,7 @@ A comprehensive guide covering installation through production hardening, availa
 Contents:
 
 **Part I — Installation (Sections 1–10)**
-- MySQL 8.4, OpenJDK 17, Keycloak 26.6, STIG Manager 1.6.12, Caddy reverse proxy
+- MySQL 8.4, OpenJDK 17, Keycloak 26.7, STIG Manager 1.6.13, Caddy reverse proxy
 - All five components registered as Windows services (auto-start, dependency-ordered)
 - STIG Manager Watcher for automated assessment file import (local or network share)
 - Verification steps, troubleshooting, and service management commands
@@ -125,12 +125,12 @@ All components run on a single Windows Server. Caddy is the only externally-faci
 
 | Component | Version |
 |-----------|---------|
-| STIG Manager | 1.6.12 |
+| STIG Manager | 1.6.13 |
 | STIG Manager Watcher | 1.6.9 |
-| Keycloak | 26.6.3 |
-| MySQL | 8.4.9 |
+| Keycloak | 26.7.0 |
+| MySQL | 8.4.11 |
 | Caddy | 2.11.4 |
-| Microsoft OpenJDK | 17.0.19 |
+| Microsoft OpenJDK | 17.0.20 |
 | WinSW | 2.12.0 |
 
 ## Prerequisites

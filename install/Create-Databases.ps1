@@ -20,6 +20,13 @@ Write-Note "Server: localhost   MySQL bin: $MySqlBin"
 $sql = @"
 ALTER USER 'root'@'localhost' IDENTIFIED BY '$MySqlRootPassword';
 
+-- Binary logs are on by default with no expiration configured anywhere in
+-- this install (no my.ini ships with it), so on a busy or crash-looping
+-- instance they grow unbounded and can fill the drive (issue #10). This is a
+-- single standalone node with no replicas, so a short retention is safe;
+-- SET PERSIST writes it to mysqld-auto.cnf so it survives service restarts.
+SET PERSIST binlog_expire_logs_seconds = 604800;
+
 CREATE DATABASE IF NOT EXISTS stigman CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 CREATE USER IF NOT EXISTS 'stigman'@'localhost' IDENTIFIED BY '$StigmanDbPassword';
 ALTER USER 'stigman'@'localhost' IDENTIFIED BY '$StigmanDbPassword';
