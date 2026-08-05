@@ -26,7 +26,7 @@ $ServicesDir   = 'C:\Services'     # install root for all components
 
 # ---- Versions (match the files you downloaded in Section 1) -----
 $KeycloakVersion = '26.7.0'
-$StigmanVersion  = '1.6.13'
+$StigmanVersion  = '1.6.15'
 
 # ---- Tool locations (defaults match the guide) -----------------
 $JdkHome  = 'C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot'
