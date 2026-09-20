@@ -25,8 +25,8 @@ $InstallersDir = 'C:\Installers'   # where you copied the downloaded files (Sect
 $ServicesDir   = 'C:\Services'     # install root for all components
 
 # ---- Versions (match the files you downloaded in Section 1) -----
-$KeycloakVersion = '26.7.3'
-$StigmanVersion  = '1.6.16'
+$KeycloakVersion = '26.7.4'
+$StigmanVersion  = '1.6.17'
 
 # ---- Tool locations (defaults match the guide) -----------------
 $JdkHome  = 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot'
@@ -36,3 +36,5 @@ $MySqlBin = 'C:\Program Files\MySQL\MySQL Server 8.4\bin'
 $PackageRoot       = Split-Path $PSScriptRoot -Parent
 $ServiceConfigsDir = Join-Path $PackageRoot 'deliverables\service-configs'
 $RealmJsonSource   = Join-Path $PackageRoot 'deliverables\stigman-realm.json'
+
+

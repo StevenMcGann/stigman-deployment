@@ -18,7 +18,7 @@ A comprehensive guide covering installation through production hardening, availa
 Contents:
 
 **Part I — Installation (Sections 1–10)**
-- MySQL 8.4, OpenJDK 17, Keycloak 26.7, STIG Manager 1.6.13, Caddy reverse proxy
+- MySQL 8.4, OpenJDK 17, Keycloak 26.7, STIG Manager 1.6.17, Caddy reverse proxy
 - All five components registered as Windows services (auto-start, dependency-ordered)
 - STIG Manager Watcher for automated assessment file import (local or network share)
 - Verification steps, troubleshooting, and service management commands
@@ -62,6 +62,14 @@ The stock Windows Server console (Windows PowerShell 5.1 / PSReadLine 2.0 in con
 | `deliverables/configure-tls.cmd` | Installs CA-issued certificates into Caddy |
 | `cleanup-all.ps1` | Tears down all components for a clean reinstall |
 
+### Applying Updates
+
+Each release cycle produces a dated change procedure, `deliverables/STIG-Manager-Update-<date>-Production.docx`. It gives the risk assessment, the pre-checks, every command in the order to run it, the rollback, and what was and was not tested in the lab.
+
+- Apply the **newest** one. Each document states the versions it starts from; if production is behind them, apply the earlier dated documents first, in order.
+- Latest: **2026-09-20** (Keycloak 26.7.3 to 26.7.4, STIG Manager 1.6.16 to 1.6.17). STIG Manager 1.6.17 needs MySQL 8.4.0 or later, and the document's first pre-check is the MySQL version.
+- The routine steps for any single component are also in Section 16 of the Deployment Guide.
+
 ### Service Configurations (`deliverables/service-configs/`)
 
 Ready-to-use config files for each component:
@@ -89,6 +97,15 @@ The Word documents in `deliverables/` are generated from source using the [docx]
 - `build-update-doc.js` — generates the production update procedure document
 
 To rebuild: `npm install docx` then `node build-install-guide.js && node build-markdown-guide.js`.
+
+`build-install-guide.js` is the single source for both guides. It drifted behind
+the shipped .docx for months - by September 2026 it still said Keycloak 26.6.3
+and was missing the Section 6 HSTS notes, so rebuilding would have rolled the
+guide backwards. It was re-synced on 2026-09-17 and verified to reproduce the
+shipped guide exactly, and the maintenance automation now updates version
+strings in the generator and the markdown guide alongside the .docx, so the
+three stay together. If you edit a guide, edit the generator - an edit made directly to
+the .docx is lost the next time anyone rebuilds.
 
 ## Security Notes
 
@@ -125,12 +142,12 @@ All components run on a single Windows Server. Caddy is the only externally-faci
 
 | Component | Version |
 |-----------|---------|
-| STIG Manager | 1.6.13 |
+| STIG Manager | 1.6.17 |
 | STIG Manager Watcher | 1.6.9 |
-| Keycloak | 26.7.0 |
+| Keycloak | 26.7.4 |
 | MySQL | 8.4.11 |
 | Caddy | 2.11.4 |
-| Microsoft OpenJDK | 17.0.20 |
+| Microsoft OpenJDK | 17.0.20.1 |
 | WinSW | 2.12.0 |
 
 ## Prerequisites
