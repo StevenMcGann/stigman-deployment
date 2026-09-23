@@ -20,8 +20,6 @@ All components run on one Windows Server.
 | Caddy | Reverse proxy; the only service reachable from the network, and it handles HTTPS |
 | WinSW | Runs Keycloak, STIG Manager and the Watcher as Windows services |
 
-**Which versions?** The exact versions this package was tested with are in [Section 1 of the Deployment Guide](docs/deployment-guide.md#1-prerequisites-and-software-downloads), which is also the download list. The versions the install scripts use are set in `install/stigman-config.ps1`. The README doesn't list versions on purpose, so it doesn't need editing for every patch.
-
 ## What's Included
 
 ### Deployment Guide
