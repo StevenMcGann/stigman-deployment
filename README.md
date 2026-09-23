@@ -1,172 +1,170 @@
 # STIG Manager OSS — Windows Server Deployment
 
-A turnkey deployment package for [STIG Manager OSS](https://github.com/NUWCDIVNPT/stig-manager) on Windows Server 2022. This project provides a step-by-step guide, pre-built service configurations, and automation scripts that reduce the installation from hours of troubleshooting into a repeatable, documented process.
+A deployment package for [STIG Manager OSS](https://github.com/NUWCDIVNPT/stig-manager) on Windows Server. It gives you a step-by-step guide, ready-made service configurations and install scripts, so an installation that used to take hours of troubleshooting becomes a repeatable, documented process.
 
 ## Why This Exists
 
-STIG Manager is a powerful open-source tool for managing DISA STIG assessments, but its documentation targets Linux/Docker environments. Getting it running on Windows Server — with Keycloak, MySQL, reverse proxy, and proper service registration — requires stitching together multiple guides and working through platform-specific issues. This project solves that by packaging everything needed for a clean Windows deployment.
+STIG Manager is an open-source tool for managing DISA STIG assessments, but its own documentation targets Linux and Docker. Running it on Windows Server — with Keycloak, MySQL, a reverse proxy and proper Windows services — means stitching several guides together and working through Windows-specific problems. This project packages all of that into one tested procedure.
+
+## Components
+
+All components run on one Windows Server.
+
+| Component | What it does |
+|-----------|--------------|
+| STIG Manager | The web application and its API |
+| STIG Manager Watcher | Optional. Watches a folder or network share and imports assessment files automatically |
+| Keycloak | Sign-in and user management (OIDC); can federate to Active Directory |
+| MySQL (8.4 LTS) | Database for STIG Manager and Keycloak |
+| Microsoft OpenJDK (17) | Java runtime that Keycloak needs |
+| Caddy | Reverse proxy; the only service reachable from the network, and it handles HTTPS |
+| WinSW | Runs Keycloak, STIG Manager and the Watcher as Windows services |
+
+**Which versions?** The exact versions this package was tested with are in [Section 1 of the Deployment Guide](docs/deployment-guide.md#1-prerequisites-and-software-downloads), which is also the download list. The versions the install scripts use are set in `install/stigman-config.ps1`. The README doesn't list versions on purpose, so it doesn't need editing for every patch.
 
 ## What's Included
 
 ### Deployment Guide
 
-A comprehensive guide covering installation through production hardening, available in two formats:
+Covers everything from a bare server to production, in two formats with the same content:
 
-- **[docs/deployment-guide.md](docs/deployment-guide.md)** — read it right here on GitHub
+- **[docs/deployment-guide.md](docs/deployment-guide.md)** — read it here on GitHub
 - **`deliverables/STIG-Manager-Deployment-Guide.docx`** — printable Word version
 
-Contents:
-
 **Part I — Installation (Sections 1–10)**
-- MySQL 8.4, OpenJDK 17, Keycloak 26.7, STIG Manager 1.6.17, Caddy reverse proxy
-- All five components registered as Windows services (auto-start, dependency-ordered)
-- STIG Manager Watcher for automated assessment file import (local or network share)
-- Verification steps, troubleshooting, and service management commands
+- Downloads and server requirements (Section 1)
+- MySQL, OpenJDK, Keycloak, STIG Manager and Caddy (Sections 2–6)
+- All five services registered in Windows, starting automatically in the right order (Section 7)
+- Verification, troubleshooting and service commands (Sections 8–9)
+- STIG Manager Watcher for automatic file import, from a local folder or network share (Section 10)
 
 **Part II — Production Transition (Sections 11–15)**
-- DNS hostname configuration with automated helper script
-- TLS certificate installation (replace self-signed with CA-issued)
-- Active Directory / LDAP integration via Keycloak federation
-- Password rotation procedures
+- Server hostname (DNS) setup, with a helper script
+- Replacing the self-signed certificate with a CA-issued one
+- Active Directory / LDAP sign-in through Keycloak
+- Changing the default passwords
 - Go-live checklist
 
-**Maintenance (Section 16)**
-- Applying version updates: database backup, binary swap, automatic schema migration, verification, and rollback
+**Maintenance and options (Sections 16–17, Appendices)**
+- Applying version updates: database backup, replacing the files, automatic database upgrade, checks, and rollback (Section 16)
+- Branding the Home page (Section 17)
+- Architecture, credentials reference and service commands (Appendices A–C)
 
 ### Automated Installer (recommended)
 
-The stock Windows Server console (Windows PowerShell 5.1 / PSReadLine 2.0 in conhost) cannot reliably paste multi-line commands, so copy-pasting blocks from any guide — Word *or* Markdown — fails unpredictably. The `install/` folder sidesteps this entirely: edit one config file, then run scripts that perform the install with no pasting.
+The standard Windows Server console (Windows PowerShell 5.1) can't reliably paste multi-line commands, so pasting blocks from any guide, Word or Markdown, fails unpredictably. The `install/` folder avoids this: edit one settings file, then run scripts that do the install with no pasting.
 
 | Script | Purpose |
 |--------|---------|
-| `install/stigman-config.ps1` | Your settings (server address, passwords, versions) — edit this first |
+| `install/stigman-config.ps1` | Your settings (server address, passwords, versions). Edit this first |
 | `install/Install-All.ps1` | Runs the whole Part I install (Sections 2–7) in order; safe to re-run |
-| `install/Initialize-MySql.ps1` | Installs/initializes MySQL and the MySQL84 service |
+| `install/Initialize-MySql.ps1` | Installs and initializes MySQL and the MySQL84 service |
 | `install/Create-Databases.ps1` | Creates the `stigman` and `keycloak` databases and users |
 | `install/Install-Java.ps1` | Installs OpenJDK 17 and sets `JAVA_HOME` |
-| `install/Install-Keycloak.ps1` | Extracts Keycloak, writes `keycloak.conf`, bootstraps admin, builds |
-| `install/Install-StigManager.ps1` | Extracts STIG Manager, writes the service config |
+| `install/Install-Keycloak.ps1` | Extracts Keycloak, writes `keycloak.conf`, creates the admin account, builds |
+| `install/Install-StigManager.ps1` | Extracts STIG Manager and writes its service settings |
 | `install/Install-Caddy.ps1` | Installs Caddy (.exe or .zip) and writes the Caddyfile |
-| `install/Register-Services.ps1` | Registers and starts all services (auto-detects the Keycloak version) |
+| `install/Register-Services.ps1` | Registers and starts all services (finds the Keycloak version itself) |
 | `install/Import-Realm.ps1` | Waits for Keycloak and imports the STIG Manager realm |
-| `install/Install-Watcher.ps1` | Installs and configures the optional Watcher (roles, secret, collection grant, service) — no console steps |
-| `install/Trust-CaddyCert.ps1` | Trusts Caddy's self-signed root CA so the browser loads the app (fixes the "Authorizing" ServiceWorker error) |
-| `install/Set-HomePage.ps1` | Brands the Home page Welcome widget (logo, title, message, link, classification) |
+| `install/Install-Watcher.ps1` | Optional. Installs and configures the Watcher (roles, secret, collection access, service) with no console steps |
+| `install/Trust-CaddyCert.ps1` | Trusts Caddy's self-signed root certificate so the browser loads the app (fixes the "Authorizing" error) |
+| `install/Set-HomePage.ps1` | Brands the Home page welcome panel (logo, title, message, link, classification) |
 
 ### Maintenance Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `deliverables/register-services.cmd` | Registers all services, sets dependencies, starts the stack |
-| `deliverables/Configure-Hostname.ps1` | Updates hostname across all config files, rebuilds Keycloak (version-agnostic) |
+| `deliverables/register-services.cmd` | Registers all services, sets their start order, starts the stack |
+| `deliverables/Configure-Hostname.ps1` | Changes the hostname in every config file and rebuilds Keycloak (works with any version) |
 | `deliverables/configure-tls.cmd` | Installs CA-issued certificates into Caddy |
-| `cleanup-all.ps1` | Tears down all components for a clean reinstall |
+| `cleanup-all.ps1` | Removes all components for a clean reinstall |
 
 ### Applying Updates
 
-Each release cycle produces a dated change procedure, `deliverables/STIG-Manager-Update-<date>-Production.docx`. It gives the risk assessment, the pre-checks, every command in the order to run it, the rollback, and what was and was not tested in the lab.
+Each tested update comes with a dated procedure, `deliverables/STIG-Manager-Update-<date>-Production.docx`. It gives the risk assessment, the checks to run first, every command in order, how to roll back, and what was and wasn't tested in the lab.
 
-- Apply the **newest** one. Each document states the versions it starts from; if production is behind them, apply the earlier dated documents first, in order.
-- Latest: **2026-09-20** (Keycloak 26.7.3 to 26.7.4, STIG Manager 1.6.16 to 1.6.17). STIG Manager 1.6.17 needs MySQL 8.4.0 or later, and the document's first pre-check is the MySQL version.
-- The routine steps for any single component are also in Section 16 of the Deployment Guide.
+- Use the one with the **newest date** in its file name.
+- Each document states the versions it starts from. If your server is older than that, apply the earlier dated documents first, oldest to newest.
+- The general steps for updating any one component are in Section 16 of the Deployment Guide.
 
 ### Service Configurations (`deliverables/service-configs/`)
 
-Ready-to-use config files for each component:
+Ready-to-use configuration files:
 
-- **Caddyfile** — Reverse proxy with TLS termination
+- **Caddyfile** — reverse proxy with HTTPS
 - **keycloak.conf** — Keycloak production settings
 - **keycloak-svc.xml** — WinSW service wrapper for Keycloak
-- **stig-manager-svc.xml** — WinSW service wrapper with environment variables
-- **stigman-watcher-svc.xml** — WinSW service wrapper with boot resilience
+- **stig-manager-svc.xml** — WinSW service wrapper for STIG Manager, with its environment variables
+- **stigman-watcher-svc.xml** — WinSW service wrapper for the Watcher, with a delayed start and connection retries so it waits for STIG Manager at boot
 
 ### Keycloak Realm (`deliverables/stigman-realm.json`)
 
-Pre-configured realm import with:
-- Required OIDC client scopes for STIG Manager
-- `stig-manager` public client with protocol mappers
-- `stigman-watcher` confidential client for automated imports
-- Test user accounts with appropriate role assignments
+A ready-made realm to import, with:
+- The OIDC client scopes STIG Manager needs
+- The `stig-manager` public client with its protocol mappers
+- The `stigman-watcher` confidential client for automatic imports
+- Test user accounts with their roles
 
 ### Document Build Scripts
 
-The Word documents in `deliverables/` are generated from source using the [docx](https://www.npmjs.com/package/docx) Node.js library, so the guides can be versioned and diffed like code:
+The Word documents in `deliverables/` are generated from scripts using the [docx](https://www.npmjs.com/package/docx) Node.js library, so changes to the guides can be reviewed like code:
 
-- `build-install-guide.js` — generates the Deployment Guide (.docx)
-- `build-markdown-guide.js` — generates [docs/deployment-guide.md](docs/deployment-guide.md) from the same source
-- `build-update-doc.js` — generates the production update procedure document
+- `build-install-guide.js` — the Deployment Guide (.docx). This is the source for both guides
+- `build-markdown-guide.js` — builds [docs/deployment-guide.md](docs/deployment-guide.md) from the same source
+- `build-update-doc.js` — the dated production update procedure
 
-To rebuild: `npm install docx` then `node build-install-guide.js && node build-markdown-guide.js`.
+To rebuild the guides: `npm install docx`, then `node build-install-guide.js && node build-markdown-guide.js`.
 
-`build-install-guide.js` is the single source for both guides. It drifted behind
-the shipped .docx for months - by September 2026 it still said Keycloak 26.6.3
-and was missing the Section 6 HSTS notes, so rebuilding would have rolled the
-guide backwards. It was re-synced on 2026-09-17 and verified to reproduce the
-shipped guide exactly, and the maintenance automation now updates version
-strings in the generator and the markdown guide alongside the .docx, so the
-three stay together. If you edit a guide, edit the generator - an edit made directly to
-the .docx is lost the next time anyone rebuilds.
+**To change a guide, edit `build-install-guide.js` and rebuild.** An edit made directly to the .docx is lost the next time anyone rebuilds.
 
 ## Security Notes
 
-The configs and realm import use **sample credentials** (e.g., `STIGman_DB_2026!`, watcher client secret `changeme`) so the guide is reproducible end-to-end. Before production use:
+The configs and realm import use **sample credentials** (for example `STIGman_DB_2026!`, and `changeme` for the Watcher's client secret) so the guide can be followed end to end. Before production use:
 
-- Change all database, Keycloak admin, and test account passwords (Part II, Section 14 covers rotation)
+- Change all database, Keycloak admin and test account passwords (Section 14)
 - Replace the `stigman-watcher` client secret in Keycloak
-- Restrict the `stig-manager` client's redirect URIs and web origins (the realm import ships with `*` for initial setup)
+- Restrict the `stig-manager` client's redirect URIs and web origins (the realm import allows `*` for initial setup)
 - Replace the self-signed certificate with a CA-issued one (Section 12)
 
 ## Architecture
 
-All components run on a single Windows Server. Caddy is the only externally-facing service.
+All components run on one Windows Server. Caddy is the only service reachable from the network.
 
 ```
   Client Browser
        |
   HTTPS :443
        |
-  [ Caddy ]
-       |                  |
-  /api, /            /realms, /resources
-       |                  |
-  [ STIG Manager ]   [ Keycloak ]
-  :54000             :8080
-       |                  |
-       +--- [ MySQL ] ----+
-            :3306
+  [ Caddy ] ---- /branding ---> Home page logo files (served by Caddy)
+       |                         |
+  /api and everything else   /realms, /resources, /admin
+       |                         |
+  [ STIG Manager ]           [ Keycloak ]
+  :54000                     :8080
+       |                         |
+       +------- [ MySQL ] -------+
+                :3306
 
-  [ Watcher ] ---> scans directory ---> uploads via API
+  [ Watcher ] ---> scans a folder or share ---> uploads through the API
 ```
-
-## Component Versions
-
-| Component | Version |
-|-----------|---------|
-| STIG Manager | 1.6.17 |
-| STIG Manager Watcher | 1.6.9 |
-| Keycloak | 26.7.4 |
-| MySQL | 8.4.11 |
-| Caddy | 2.11.4 |
-| Microsoft OpenJDK | 17.0.20.1 |
-| WinSW | 2.12.0 |
 
 ## Prerequisites
 
-- Windows Server 2022 (or 2019)
+- Windows Server 2022 or 2019
 - Administrator access
-- Installer files downloaded per Section 1 of the Deployment Guide
+- The installer files listed in Section 1 of the Deployment Guide
 
 ## Getting Started
 
 1. Download the installer files listed in [Section 1 of the Deployment Guide](docs/deployment-guide.md#1-prerequisites-and-software-downloads) and copy them to `C:\Installers`
-2. Edit `install\stigman-config.ps1` with your server address and passwords
+2. Edit `install\stigman-config.ps1` with your server address and passwords, and check that its versions match the files you downloaded
 3. From an elevated PowerShell at the repo root, run:
    ```
    powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Install-All.ps1
    ```
-4. Verify per Section 8 of the guide, then proceed to Part II for production hardening
+4. Check the installation using Section 8 of the guide, then go on to Part II to prepare for production
 
-> Prefer to do it by hand? Follow the Deployment Guide from Section 2 onward — but paste **one line at a time**, since the stock Windows console cannot reliably paste multi-line blocks.
+> Prefer to install by hand? Follow the Deployment Guide from Section 2 onward, but paste **one line at a time**, because the standard Windows console can't reliably paste multi-line blocks.
 
 ## License
 
