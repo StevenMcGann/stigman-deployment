@@ -159,6 +159,8 @@ function New-StigmanSvcXml {
   <env name="STIGMAN_CLASSIFICATION" value="U" />
   <env name="STIGMAN_OIDC_PROVIDER" value="http://localhost:8080/realms/stigman" />
   <env name="STIGMAN_CLIENT_OIDC_PROVIDER" value="https://$ServerIp/realms/stigman" />
+  <env name="TEMP" value="$(Join-Path $ServicesDir 'stig-manager\temp')" />
+  <env name="TMP" value="$(Join-Path $ServicesDir 'stig-manager\temp')" />
   <depend>MySQL84</depend>
   <depend>Keycloak</depend>
 </service>

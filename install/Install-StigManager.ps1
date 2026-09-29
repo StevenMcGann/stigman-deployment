@@ -32,6 +32,12 @@ if (-not (Test-Path $winsw)) { Fail "WinSW-x64.exe not found in $InstallersDir."
 Copy-Item $winsw (Join-Path $smDir 'stig-manager-svc.exe') -Force
 Write-Ok "stig-manager-svc.exe in place."
 
+# STIG Manager unpacks its web client into its temp folder at every start. The
+# service's default, C:\Windows\Temp, is emptied of week-old files by Windows
+# Disk Cleanup, which leaves the web page hanging while the API still answers.
+New-Item -ItemType Directory -Path (Join-Path $smDir 'temp') -Force | Out-Null
+Write-Ok "Temp folder in place: $(Join-Path $smDir 'temp')"
+
 Write-Step "Writing stig-manager-svc.xml"
 Set-TextFile -Path (Join-Path $smDir 'stig-manager-svc.xml') -Content (New-StigmanSvcXml -StigmanDbPassword $StigmanDbPassword -ServerIp $ServerIp)
 Write-Ok "stig-manager-svc.xml written (CLIENT_OIDC_PROVIDER=https://$ServerIp/realms/stigman)."

@@ -16,6 +16,8 @@
   <env name="STIGMAN_CLASSIFICATION" value="U" />
   <env name="STIGMAN_OIDC_PROVIDER" value="http://localhost:8080/realms/stigman" />
   <env name="STIGMAN_CLIENT_OIDC_PROVIDER" value="https://YOUR_SERVER_IP/realms/stigman" />
+  <env name="TEMP" value="C:\Services\stig-manager\temp" />
+  <env name="TMP" value="C:\Services\stig-manager\temp" />
   <depend>MySQL84</depend>
   <depend>Keycloak</depend>
 </service>

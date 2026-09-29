@@ -51,6 +51,7 @@
   - [Keycloak redirects to HTTPS but page doesn’t load](#keycloak-redirects-to-https-but-page-doesnt-load)
   - [ERR_SSL_PROTOCOL_ERROR from network clients](#err_ssl_protocol_error-from-network-clients)
   - [STIG Manager hangs at “Authorizing” (ServiceWorker SecurityError, code 18)](#stig-manager-hangs-at-authorizing-serviceworker-securityerror-code-18)
+  - [STIG Manager web page never loads, but the API works](#stig-manager-web-page-never-loads-but-the-api-works)
   - [STIG Manager can’t connect to Keycloak](#stig-manager-cant-connect-to-keycloak)
 - [10. STIG Manager Watcher (Optional)](#10-stig-manager-watcher-optional)
   - [Step 10.1: Prerequisites](#step-101-prerequisites)
@@ -493,6 +494,8 @@ Copy-Item C:\Installers\stig-manager-svc.xml C:\Services\stig-manager\stig-manag
   <env name="STIGMAN_CLASSIFICATION" value="U" />
   <env name="STIGMAN_OIDC_PROVIDER" value="http://localhost:8080/realms/stigman" />
   <env name="STIGMAN_CLIENT_OIDC_PROVIDER" value="https://YOUR_SERVER_IP/realms/stigman" />
+  <env name="TEMP" value="C:\Services\stig-manager\temp" />
+  <env name="TMP" value="C:\Services\stig-manager\temp" />
   <depend>MySQL84</depend>
   <depend>Keycloak</depend>
 </service>
@@ -501,6 +504,14 @@ Copy-Item C:\Installers\stig-manager-svc.xml C:\Services\stig-manager\stig-manag
 > **Important:** Replace STIGman_DB_2026! with the stigman database password from Step 2.3. Replace YOUR_SERVER_IP in STIGMAN_CLIENT_OIDC_PROVIDER with the same IP or hostname used in keycloak.conf.
 
 > **Note:** STIGMAN_OIDC_PROVIDER is the server-to-server URL (localhost). STIGMAN_CLIENT_OIDC_PROVIDER is the URL browsers use to reach Keycloak through Caddy. These must be different. The \<depend> tags ensure STIG Manager waits for MySQL and Keycloak to start first.
+
+Create the temp folder named by TEMP and TMP (either option above needs it):
+
+```
+New-Item -ItemType Directory -Path C:\Services\stig-manager\temp -Force
+```
+
+> **Important:** Do not leave out TEMP and TMP. Each time STIG Manager starts it unpacks its web client into its temp folder, and for a service that folder is otherwise C:\Windows\Temp. Windows Disk Cleanup deletes files there that are more than 7 days old, so about a week after each restart the web page stops loading while the API keeps working. A folder under C:\Services is not cleaned. See Section 9 if this has already happened.
 
 ## 6. Install and Configure Caddy (Reverse Proxy)
 
@@ -812,6 +823,46 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Trust-CaddyCert.ps
 ```
 
 The script imports Caddy's root CA into the Local Machine Trusted Root store and exports a copy to C:\Services\caddy\caddy-root-ca.crt for network clients (import that file into their Trusted Root store). For production, install a CA-issued certificate instead (Section 12) — domain-joined clients then trust it automatically.
+
+### STIG Manager web page never loads, but the API works
+
+Symptoms: the browser waits on https://YOUR_SERVER_IP/ until it times out, all five services show Running, and https://YOUR_SERVER_IP/api/op/configuration answers normally. The STIG Manager log (C:\Services\stig-manager\stig-manager-svc.out.log) shows an ENOENT error naming a file under a pkg- folder in C:\Windows\Temp. Windows Disk Cleanup has deleted the web client that STIG Manager unpacked there when it last started, typically about a week earlier. Confirm with:
+
+```
+Select-String -Path C:\Services\stig-manager\stig-manager-svc.out.log -Pattern 'ENOENT.*pkg-' | Select-Object -Last 1
+```
+
+To fix it permanently, give the service its own temp folder, then restart it (restarting alone brings the page back for another week). Back up the config first. In an elevated PowerShell:
+
+```
+Copy-Item C:\Services\stig-manager\stig-manager-svc.xml C:\Services\stig-manager\stig-manager-svc.xml.bak
+New-Item -ItemType Directory -Path C:\Services\stig-manager\temp -Force
+```
+
+Add these two lines to stig-manager-svc.xml, just above the first \<depend> line:
+
+```
+  <env name="TEMP" value="C:\Services\stig-manager\temp" />
+  <env name="TMP" value="C:\Services\stig-manager\temp" />
+```
+
+Then restart STIG Manager and the Watcher:
+
+```
+Stop-Service STIGManagerWatcher
+Restart-Service STIGManager
+Start-Sleep -Seconds 15
+Start-Service STIGManagerWatcher
+```
+
+Healthy result: the page loads, and a pkg- folder now exists under C:\Services\stig-manager\temp:
+
+```
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/
+Get-ChildItem C:\Services\stig-manager\temp
+```
+
+The first command prints 200. To undo, restore stig-manager-svc.xml.bak over stig-manager-svc.xml and restart STIG Manager the same way.
 
 ### STIG Manager can’t connect to Keycloak
 
