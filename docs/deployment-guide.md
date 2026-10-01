@@ -1400,7 +1400,7 @@ If the new version must be reverted:
 
 Keycloak updates differently from STIG Manager. STIG Manager is a single binary you swap in place; Keycloak is a full distribution installed into a version-named folder (C:\Services\keycloak-\<version>). The supported approach is to install the new version into a new folder, migrate your configuration into it, rebuild, and re-point the Windows service. Keeping the old folder gives you an instant rollback path.
 
-> **Important:** Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Patch releases within the same minor series (for example 26.7.3 to 26.8.0) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start.
+> **Important:** Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Releases within the same major series (for example 26.7.3 to 26.7.4, or 26.7.4 to 26.8.0) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start.
 
 **1. Review the release notes and back up**
 
