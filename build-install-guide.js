@@ -164,7 +164,7 @@ const doc = new Document({
           new TableRow({ children: [tc("Component",{hdr:true,w:2600}), tc("Version",{hdr:true,w:1400}), tc("Download",{hdr:true,w:2680}), tc("Purpose",{hdr:true,w:2680})] }),
           new TableRow({ children: [tc("MySQL Community Server",{w:2600}), tc("8.4.11 (MSI)",{w:1400}), tc("dev.mysql.com/downloads/mysql",{w:2680}), tc("Database backend (STIG Manager 1.6.17 and later needs 8.4.0 or later)",{w:2680})] }),
           new TableRow({ children: [tc("Microsoft OpenJDK",{w:2600}), tc("17.0.20.1 (MSI)",{w:1400}), tc("learn.microsoft.com/java/openjdk",{w:2680}), tc("Java runtime for Keycloak",{w:2680})] }),
-          new TableRow({ children: [tc("Keycloak",{w:2600}), tc("26.7.4 (ZIP)",{w:1400}), tc("keycloak.org/downloads",{w:2680}), tc("Identity/auth provider (OIDC)",{w:2680})] }),
+          new TableRow({ children: [tc("Keycloak",{w:2600}), tc("26.8.0 (ZIP)",{w:1400}), tc("keycloak.org/downloads",{w:2680}), tc("Identity/auth provider (OIDC)",{w:2680})] }),
           new TableRow({ children: [tc("STIG Manager",{w:2600}), tc("1.6.17 (ZIP)",{w:1400}), tc("github.com/NUWCDIVNPT/stig-manager",{w:2680}), tc("The application",{w:2680})] }),
           new TableRow({ children: [tc("STIG Manager Watcher",{w:2600}), tc("1.6.9 (ZIP)",{w:1400}), tc("github.com/NUWCDIVNPT/stigman-watcher",{w:2680}), tc("Automated file import (optional, Section 10)",{w:2680})] }),
           new TableRow({ children: [tc("Caddy Server",{w:2600}), tc("2.11.4 (EXE)",{w:1400}), tc("github.com/caddyserver/caddy/releases",{w:2680}), tc("Reverse proxy with auto-TLS",{w:2680})] }),
@@ -190,7 +190,7 @@ const doc = new Document({
       p("Copy the following files into C:\\Installers:"),
       bullet("mysql-8.4.11-winx64.msi"),
       bullet("microsoft-jdk-17.0.20.1-windows-x64.msi"),
-      bullet("keycloak-26.7.4.zip"),
+      bullet("keycloak-26.8.0.zip"),
       bullet("stig-manager-win-1.6.17.zip"),
       bullet("stigman-watcher-win-1.6.9.zip (optional, Section 10)"),
       bullet("caddy_windows_amd64.exe (2.11.4)"),
@@ -212,7 +212,7 @@ const doc = new Document({
       blank(),
       p("After installation, the directory structure will be:"),
       code("C:\\Services\\"),
-      code("  keycloak-26.7.4\\     Keycloak identity provider"),
+      code("  keycloak-26.8.0\\     Keycloak identity provider"),
       code("  stig-manager\\        STIG Manager application"),
       code("  stigman-watcher\\     STIG Manager Watcher (optional)"),
       code("  caddy\\               Caddy reverse proxy"),
@@ -325,8 +325,8 @@ const doc = new Document({
       h2("Step 4.1: Extract Keycloak"),
       p("Extract the Keycloak ZIP to C:\\Services:"),
       code("cd C:\\Installers"),
-      code("Expand-Archive keycloak-26.7.4.zip -DestinationPath C:\\Services"),
-      p("This creates C:\\Services\\keycloak-26.7.4\\"),
+      code("Expand-Archive keycloak-26.8.0.zip -DestinationPath C:\\Services"),
+      p("This creates C:\\Services\\keycloak-26.8.0\\"),
       blank(),
 
       h2("Step 4.2: Configure Keycloak"),
@@ -340,11 +340,11 @@ const doc = new Document({
         new TextRun({ text: "Option A: ", bold: true }),
         new TextRun("Copy from deliverables (recommended):"),
       ),
-      code("Copy-Item C:\\Installers\\keycloak.conf C:\\Services\\keycloak-26.7.4\\conf\\keycloak.conf"),
+      code("Copy-Item C:\\Installers\\keycloak.conf C:\\Services\\keycloak-26.8.0\\conf\\keycloak.conf"),
       blank(),
       pRuns(
         new TextRun({ text: "Option B: ", bold: true }),
-        new TextRun("Create manually. Edit C:\\Services\\keycloak-26.7.4\\conf\\keycloak.conf:"),
+        new TextRun("Create manually. Edit C:\\Services\\keycloak-26.8.0\\conf\\keycloak.conf:"),
       ),
       codeComment("# Database"),
       code("db=mysql"),
@@ -373,7 +373,7 @@ const doc = new Document({
       code("$env:KC_BOOTSTRAP_ADMIN_PASSWORD = 'Admin_KC_2026!'"),
       blank(),
       numItem2("Run the bootstrap-admin command:"),
-      code("cd C:\\Services\\keycloak-26.7.4"),
+      code("cd C:\\Services\\keycloak-26.8.0"),
       code(".\\bin\\kc.bat bootstrap-admin user --username admin --password:env KC_BOOTSTRAP_ADMIN_PASSWORD"),
       p("You should see \"Created temporary admin user\" in the output. Keycloak will briefly start and stop as part of this process."),
       blank(),
@@ -384,7 +384,7 @@ const doc = new Document({
       p("The realm import creates the STIG Manager OIDC client, required scopes, protocol mappers, and test user accounts. Start Keycloak temporarily in development mode, import the realm, then stop it."),
       blank(),
       numItem3("Start Keycloak in development mode:"),
-      code("cd C:\\Services\\keycloak-26.7.4"),
+      code("cd C:\\Services\\keycloak-26.8.0"),
       code(".\\bin\\kc.bat start-dev"),
       p("Wait until you see \"Keycloak started\" in the console output (about 30–60 seconds)."),
       blank(),
@@ -430,7 +430,7 @@ const doc = new Document({
       code("Copy-Item C:\\Installers\\WinSW-x64.exe C:\\Services\\stig-manager\\stig-manager-svc.exe"),
       blank(),
       numItem4("Copy WinSW for Keycloak:"),
-      code("Copy-Item C:\\Installers\\WinSW-x64.exe C:\\Services\\keycloak-26.7.4\\keycloak-svc.exe"),
+      code("Copy-Item C:\\Installers\\WinSW-x64.exe C:\\Services\\keycloak-26.8.0\\keycloak-svc.exe"),
       note("WinSW requires the .exe and .xml files to share the same base name in the same directory. For example, stig-manager-svc.exe looks for stig-manager-svc.xml."),
       blank(),
 
@@ -553,7 +553,7 @@ const doc = new Document({
       p("Before registering Keycloak as a service, it must be built for production mode. The build step reads keycloak.conf and optimizes Keycloak’s startup configuration."),
       blank(),
       code("$env:JAVA_HOME = 'C:\\Program Files\\Microsoft\\jdk-17.0.20.101-hotspot'"),
-      code("cd C:\\Services\\keycloak-26.7.4"),
+      code("cd C:\\Services\\keycloak-26.8.0"),
       code(".\\bin\\kc.bat build"),
       p("Wait for the build to complete. You should see “Server build done.”"),
       important("You must run kc.bat build any time you change keycloak.conf. The service uses “start --optimized” which requires a prior build."),
@@ -563,7 +563,7 @@ const doc = new Document({
       pRuns(
         new TextRun("Copy "),
         new TextRun({ text: "keycloak-svc.xml", font: "Consolas", size: 20 }),
-        new TextRun(" from deliverables\\service-configs, or create it manually at C:\\Services\\keycloak-26.7.4\\keycloak-svc.xml:"),
+        new TextRun(" from deliverables\\service-configs, or create it manually at C:\\Services\\keycloak-26.8.0\\keycloak-svc.xml:"),
       ),
       blank(),
       code("<service>"),
@@ -591,7 +591,7 @@ const doc = new Document({
       code("sc.exe description Caddy 'Caddy reverse proxy for STIG Manager'"),
       blank(),
       pBold("Keycloak (identity provider):"),
-      code("cd C:\\Services\\keycloak-26.7.4"),
+      code("cd C:\\Services\\keycloak-26.8.0"),
       code(".\\keycloak-svc.exe install"),
       blank(),
       pBold("STIG Manager (application):"),
@@ -690,7 +690,7 @@ const doc = new Document({
 
       h2("Keycloak fails to start as a service"),
       p("Check the WinSW log for errors:"),
-      code("Get-Content C:\\Services\\keycloak-26.7.4\\keycloak-svc.err.log -Tail 30"),
+      code("Get-Content C:\\Services\\keycloak-26.8.0\\keycloak-svc.err.log -Tail 30"),
       p("Common causes:"),
       bullet("kc.bat build was not run after editing keycloak.conf"),
       bullet("JAVA_HOME is not set in keycloak-svc.xml or points to a missing JDK"),
@@ -878,7 +878,7 @@ const doc = new Document({
       blank(),
 
       pBold("keycloak.conf — The hostname setting"),
-      p("Path: C:\\Services\\keycloak-26.7.4\\conf\\keycloak.conf"),
+      p("Path: C:\\Services\\keycloak-26.8.0\\conf\\keycloak.conf"),
       code("hostname=https://stigman.yourdomain.mil"),
       blank(),
 
@@ -898,7 +898,7 @@ const doc = new Document({
 
       h2("After Changing the Hostname"),
       p("Keycloak must be rebuilt any time keycloak.conf changes. The configure-hostname.cmd script does this automatically. If you change the hostname manually, run:"),
-      code("cd C:\\Services\\keycloak-26.7.4"),
+      code("cd C:\\Services\\keycloak-26.8.0"),
       code(".\\bin\\kc.bat build"),
       p("Then restart Keycloak, STIG Manager, and reload Caddy."),
       pb(),
@@ -1185,7 +1185,7 @@ const doc = new Document({
 
       h2("Step 16.9: Updating Keycloak"),
       p("Keycloak updates differently from STIG Manager. STIG Manager is a single binary you swap in place; Keycloak is a full distribution installed into a version-named folder (C:\\Services\\keycloak-<version>). The supported approach is to install the new version into a new folder, migrate your configuration into it, rebuild, and re-point the Windows service. Keeping the old folder gives you an instant rollback path."),
-      important("Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Patch releases within the same minor series (for example 26.7.3 to 26.7.4) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start."),
+      important("Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Patch releases within the same minor series (for example 26.7.3 to 26.8.0) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start."),
       blank(),
 
       pBold("1. Review the release notes and back up"),
@@ -1198,7 +1198,7 @@ const doc = new Document({
       blank(),
 
       pBold("2. Download and extract the new version"),
-      code("$ver = '26.7.4'"),
+      code("$ver = '26.8.0'"),
       code("Invoke-WebRequest -Uri \"https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip\" -OutFile \"C:\\Installers\\keycloak-$ver.zip\""),
       code("(Get-FileHash \"C:\\Installers\\keycloak-$ver.zip\" -Algorithm SHA256).Hash"),
       p("Compare that hash with the SHA-256 digest shown beside the file on the GitHub release page. Only if they match, extract it:"),
@@ -1244,6 +1244,7 @@ const doc = new Document({
       code("(Invoke-RestMethod 'http://localhost:8080/realms/stigman/.well-known/openid-configuration').issuer"),
       code("Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status"),
       p("Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-<oldver> folder can be archived or deleted; until then it is your rollback: stop the three services, run sc.exe config Keycloak binPath= \"C:\\Services\\keycloak-<oldver>\\keycloak-svc.exe\", and start them again in the order above. Keycloak logs a warning that the database was already migrated by the newer version and then starts normally; restore the keycloak database backup from step 1 only if it refuses to start."),
+      note("Keycloak 26.8.0 changes one behaviour that applies from this version forward: brute-force lockout data is now stored in the keycloak database by default instead of in server memory, and the previous in-memory behaviour is only available through the deprecated login-failures:v1 feature switch. The practical difference is that a temporarily locked-out user stays locked out after a Keycloak restart; before 26.8.0 the lockouts were kept in memory and a restart cleared them. The imported realm (stigman-realm.json) has brute-force protection enabled, so failed logins do lock users out. No step in this procedure changes, and the step-1 dump of the keycloak schema already covers the new table. If in-memory behaviour is specifically required, set features=login-failures:v1 in keycloak.conf and rebuild; the switch is deprecated."),
       pb(),
 
       // ══════════════════════════════════════════════════
@@ -1360,7 +1361,7 @@ const doc = new Document({
       blank(),
 
       pBold("View Keycloak logs:"),
-      code("Get-Content C:\\Services\\keycloak-26.7.4\\keycloak-svc.out.log -Tail 50"),
+      code("Get-Content C:\\Services\\keycloak-26.8.0\\keycloak-svc.out.log -Tail 50"),
       blank(),
 
       pBold("View Caddy logs (if Caddy fails to start):"),
