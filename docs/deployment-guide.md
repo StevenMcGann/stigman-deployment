@@ -86,6 +86,7 @@
   - [Step 16.7: Verify and Restart the Watcher](#step-167-verify-and-restart-the-watcher)
   - [Step 16.8: Rollback (If Needed)](#step-168-rollback-if-needed)
   - [Step 16.9: Updating Keycloak](#step-169-updating-keycloak)
+  - [Step 16.10: Updating Caddy](#step-1610-updating-caddy)
 - [17. Customize the Home Page (Optional)](#17-customize-the-home-page-optional)
   - [What you can set](#what-you-can-set)
   - [Run the script](#run-the-script)
@@ -108,7 +109,7 @@ Download all of the following before starting the installation:
 | Keycloak | 26.8.0 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
 | STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
 | STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
-| Caddy Server | 2.11.4 (EXE) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
+| Caddy Server | 2.11.6 (EXE) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
 | WinSW | 2.12.0 (EXE) | github.com/winsw/winsw/releases | Windows service wrapper |
 
 > **Note:** The versions listed are the baseline this guide was written and validated against. Newer patch releases generally work, but follow Section 16 (Applying Updates) when moving to a newer version.
@@ -138,7 +139,7 @@ Copy the following files into C:\Installers:
 - keycloak-26.8.0.zip
 - stig-manager-win-1.6.17.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
-- caddy_windows_amd64.exe (2.11.4)
+- caddy_windows_amd64.exe (2.11.6)
 - WinSW-x64.exe
 - stigman-realm.json (provided with this guide)
 
@@ -526,7 +527,7 @@ New-Item -ItemType Directory -Path C:\Services\caddy -Force
 Copy-Item C:\Installers\caddy_windows_amd64.exe C:\Services\caddy\caddy.exe
 ```
 
-> **Note:** Caddy's GitHub release is a .zip (e.g., caddy_2.11.4_windows_amd64.zip) that contains caddy.exe. If you downloaded the zip, extract it first and copy the caddy.exe inside it to C:\Services\caddy\caddy.exe. The Install-Caddy.ps1 script handles either form automatically.
+> **Note:** Caddy's GitHub release is a .zip (e.g., caddy_2.11.6_windows_amd64.zip) that contains caddy.exe. If you downloaded the zip, extract it first and copy the caddy.exe inside it to C:\Services\caddy\caddy.exe. The Install-Caddy.ps1 script handles either form automatically.
 
 ### Step 6.2: Create the Caddyfile
 
@@ -1493,6 +1494,69 @@ Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-T
 Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-\<oldver> folder can be archived or deleted; until then it is your rollback: stop the three services, run sc.exe config Keycloak binPath= "C:\Services\keycloak-\<oldver>\keycloak-svc.exe", and start them again in the order above. Keycloak logs a warning that the database was already migrated by the newer version and then starts normally; restore the keycloak database backup from step 1 only if it refuses to start.
 
 > **Note:** Keycloak 26.8.0 changes one behaviour that applies from this version forward: brute-force lockout data is now stored in the keycloak database by default instead of in server memory, and the previous in-memory behaviour is only available through the deprecated login-failures:v1 feature switch. The practical difference is that a temporarily locked-out user stays locked out after a Keycloak restart; before 26.8.0 the lockouts were kept in memory and a restart cleared them. The imported realm (stigman-realm.json) has brute-force protection enabled, so failed logins do lock users out. No step in this procedure changes, and the step-1 dump of the keycloak schema already covers the new table. If in-memory behaviour is specifically required, set features=login-failures:v1 in keycloak.conf and rebuild; the switch is deprecated.
+
+### Step 16.10: Updating Caddy
+
+Caddy is a single binary you swap in place, like STIG Manager in Step 16.5. The Caddyfile, TLS material, and branding folder are left untouched, and Caddy has no database, so there is no backup step — the old binary kept beside the new one is the rollback. Caddy 2.11.6 changes two defaults that apply from this version forward and to every request through the proxy — a 16 KiB request-header cap (before, Go's 1 MiB) and an abort of any body read or response write that makes no progress for more than 60 seconds — and it validates Caddyfiles more strictly, so a config that started before may fail to start now. That is why this step has checks a plain binary swap does not. Read the release notes for every version between your current and target release first: https://github.com/caddyserver/caddy/releases
+
+**1. Download and verify the new binary**
+
+```
+$ver = '2.11.6'
+$url = "https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_$ver_windows_amd64.zip"
+Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_$ver_windows_amd64.zip"
+(Get-FileHash "C:\Installers\caddy_$ver_windows_amd64.zip" -Algorithm SHA256).Hash
+```
+
+Compare that hash with the SHA-256 digest shown beside the file on the GitHub release page. Only if they match, extract it (the archive contains caddy.exe):
+
+```
+Expand-Archive "C:\Installers\caddy_$ver_windows_amd64.zip" -DestinationPath C:\Installers\caddy-$ver -Force
+```
+
+> **Note:** If the archive extracts caddy.exe into a nested folder, use that path in the following steps instead of C:\Installers\caddy-$ver\caddy.exe.
+
+**2. Validate the current Caddyfile with the new binary, before swapping**
+
+Stricter validation in 2.11.6 rejects Caddyfile constructs that earlier 2.11 releases silently accepted, so a config that started before can fail to start now. Run the new binary against the live Caddyfile before you replace anything:
+
+```
+C:\Installers\caddy-$ver\caddy.exe validate --config C:\Services\caddy\Caddyfile
+```
+
+It must report success before you continue. If it reports an error, fix the Caddyfile and validate again — starting the service with a config the new binary rejects would leave the site down.
+
+**3. Swap the binary and start**
+
+```
+Stop-Service Caddy
+Rename-Item C:\Services\caddy\caddy.exe caddy-<oldver>.exe.bak
+Copy-Item "C:\Installers\caddy-$ver\caddy.exe" C:\Services\caddy\caddy.exe -Force
+Start-Service Caddy
+C:\Services\caddy\caddy.exe version
+```
+
+The version line must name the new release, the service must be Running, and the site must answer through the proxy:
+
+```
+Get-Service Caddy | Select-Object Name, Status
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
+```
+
+That endpoint returns 200 only if Caddy is serving TLS and proxying /api/\* to the STIG Manager API.
+
+**4. Verify the paths the new defaults can break**
+
+- Header cap: log in through the browser at https://YOUR_SERVER_IP/ and confirm the application loads and a collection opens, exactly as Step 16.7 does. A client whose cookies or OIDC tokens push the request headers past 16 KiB now gets 431 Request Header Fields Too Large on every proxied route, so a login that worked before this swap but fails now is the first place to look. If you see 431 responses, raise the cap with the max_header_size server option in the Caddyfile, then reload Caddy (Appendix C). The same login check covers request header fields containing '.' (dropped in 2.11.6 the way underscores were in 2.11.4); if a client relies on one, allow it back with the expected_dot_headers server option.
+- Idle timeout: a request body read or response write that makes no progress for more than 60 seconds is now aborted, and the Watcher's scan-result import through /api/\* is exactly such a body. If the Watcher is installed, start a scan-result import and confirm it completes. If it stalls or fails mid-transfer, raise the limits with read_body_idle and write_idle in the timeouts server option, set above the longest idle pause a real import makes.
+
+Finally, verify the full service set:
+
+```
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
+```
+
+Once everything is verified, you can delete the .bak binary; until then it is your rollback: stop Caddy, delete caddy.exe, rename the .bak back to caddy.exe, and start Caddy again.
 
 ## 17. Customize the Home Page (Optional)
 
