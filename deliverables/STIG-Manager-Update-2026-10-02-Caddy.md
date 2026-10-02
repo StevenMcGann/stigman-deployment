@@ -4,85 +4,72 @@ Tested on the twin WIN-TJ87SDPMUPH on 2026-10-02.
 
 ## What an administrator should do
 
-Apply Step 16.10 of the deployment guide exactly as written. Caddy is a single
-binary swapped in place, the downtime is one service restart (a few seconds),
-and no maintenance window is needed. The step's checks cover the two new
-defaults in 2.11.6 (a 16 KiB request-header cap and a 60-second abort of a
-stalled body or response); both were verified on the twin and passed.
+Apply Caddy 2.11.6 by following guide Step 16.10 as written — it was run end to
+end on the twin for the first time today and works with no surprises and no
+configuration changes. Keep the old binary as `caddy-2.11.4.exe.bak` until you
+have verified the site; it is the rollback.
 
 ## What changes
 
-Security fixes (first):
+Security fixes in 2.11.6 that matter behind this proxy:
 
-- **fileserver: Windows 8.3 short names are now rejected in every path
-  component, not just the last one.** This deployment serves static files
-  (`/branding/*` through the `file_server` route), so this is hardening of a
-  route in use.
-- **`path_regexp` matcher: Windows backslash bypass fixed** (completes
-  CVE-2026-52844). The Caddyfile does not use `path_regexp`; this fix does not
-  change anything here.
-- **reverseproxy: a request could be sent on the wrong upstream connection
-  when a route used `forward_auth` and `reverse_proxy` together**
-  (GHSA-6365-7ppr-5r92). The Caddyfile does not use `forward_auth`; not
-  applicable here.
-- Other fixes (fastcgi HTTPoxy, sticky-session cookie timing, admin API
-  allow-list hardening, `handle_path`/`uri` strip canonicalization) cover
-  features this deployment does not use.
+- `handle_path` / `uri strip_prefix` canonicalize the resulting path so it
+  cannot bypass path-based authorization (we use `handle_path /branding/*`).
+- `path_regexp` normalizes Windows backslashes like the `path` matcher does,
+  completing the fix for CVE-2026-52844. We do not use `path_regexp`, but this
+  is a Windows host, so the fix is defense in depth.
+- file_server rejects Windows 8.3 short names in every path component, and
+  fixes ETag collisions (we serve `C:\Services\caddy\branding`).
+- reverseproxy flushes partial responses to clients; the admin API normalizes
+  request paths and compares allow-lists case-insensitively (localhost:2019).
+- FastCGI fixes (HTTPoxy, `SERVER_ADDR`) do not apply: no FastCGI in use.
+  The `forward_auth` + `reverse_proxy` cross-connection fix (GHSA-6365-7ppr-5r92)
+  does not apply: we use plain `reverse_proxy` only. SAML/identity brokering is
+  not in use. Clustering is not in use.
 
-Behaviour changes that apply to every request through the proxy:
+Two new defaults apply to every request through the proxy:
 
-- **Request headers are capped at 16 KiB** (previously Go's 1 MiB default).
-  Larger requests now get `431 Request Header Fields Too Large`. Raise the cap
-  with the `max_header_size` server option if a client needs it.
-- **A body read or response write that makes no progress for more than 60
-  seconds is now aborted** (HTTP 499 on the twin). A slow transfer that is
-  still progressing is left alone — the timer resets on every read or write.
-  Tune with `read_body_idle` / `write_idle` in the `timeouts` server option.
-- **Request header fields containing `.` are dropped**, the same way
-  underscores were in 2.11.4. Allow specific ones back with
-  `expected_dot_headers`.
-- **Caddyfiles are validated more strictly**; a config that started before may
-  fail now. The live Caddyfile on the twin validates cleanly on 2.11.6.
-- **Windows: a reloaded listener sharing a socket no longer wedges** (#7999) —
-  a fix that matters for service restarts on this host.
+- Request headers are capped at 16 KiB (before, Go's 1 MiB). Bigger → `431`.
+- A request body read or response write that makes **no progress** for 60
+  seconds is aborted (slowloris mitigation). A transfer that keeps making
+  progress, however slowly, is left alone.
 
-Not used here, so no effect: SAML, `forward_auth`, `path_regexp`, FastCGI,
-sticky sessions, active health checks, the `url_pattern` matcher, HTTP/3
-behind low-MTU links. Building from source now requires Go 1.26 — irrelevant
-for the prebuilt Windows binary.
+Also: Caddyfile validation is stricter (a config that started before may now
+fail to start), header fields containing `.` are dropped (as `_` was in 2.11.4),
+and the admin `/load` endpoint returns `400` with a valid JSON body when a
+config is invalid (was `200` with concatenated JSON).
 
 ## What might break, and what the twin showed
 
 | Concern | Tested on the twin? | Result |
 |---|---|---|
-| 16 KiB header cap breaks login (OIDC token + cookies exceed the cap) | Yes: authenticated login through the Caddy proxy as `stigman-admin`, then an authenticated API call and a collection list. The issued token is 1,073 bytes, far under the cap | Login works, application loads, collection "Watcher Imports" opens. Cap proven active: a 20 KiB request header gets **431**, a 10 KiB header gets **200** |
-| 60-second idle timeout aborts a real Watcher import | Does not apply as installed: `Install-Watcher.ps1` points the Watcher straight at the API (`http://localhost:54000/api`), so its imports do not pass through Caddy. An import was run anyway to confirm the Watcher still works after the update: a 12 KB scan result was dropped into the watched folder and picked up on the Watcher's next 5-minute cycle; asset `WIN-TJ87SDPMUPH` updated; import recorded in `watcher-history.txt` | Import completed within one cycle. The Watcher logs one warning, "no reviews to post", which is expected on this twin (its STIG library is not fully imported) and not a Caddy fault |
-| The 60-second abort itself (does it fire) | Yes, in isolation: a second 2.11.6 instance proxying to a local sink that keeps reading. A stalled 1 KB upload was aborted at **60.0 seconds** with HTTP 499 | Fires as documented. The release notes say an upload that keeps making progress is left alone; that half was not tested on the twin |
-| Stricter validation rejects the live Caddyfile | Yes: `validate` of `C:\Services\caddy\Caddyfile` with the new binary, before the swap | "Valid configuration" (one cosmetic formatting warning) |
-| Dot-containing headers dropped and a client relies on one | No: no client on this stack sends dotted headers (web UI, CKL export, Watcher) | Assessed by inspection; escape hatch `expected_dot_headers` is documented in the step if one ever appears |
+| Stricter validation rejects the live Caddyfile | Yes — `caddy validate` with the new binary before the swap | `Valid configuration` (only a cosmetic `caddy fmt` warning about line 32) |
+| 16 KiB header cap breaks logins | Yes — a ~20.5 KiB Cookie on the Caddy-internal `/branding/` route, before and after the update, and a real OIDC round-trip | 200 on 2.11.4 → **431** on 2.11.6 (the cap is real). The test has to use `/branding/`: the STIG Manager backend refuses headers over 16 KiB by itself on any Caddy version, so a 431 from `/` or `/api/*` says nothing about Caddy. A real access token for this realm is ~1.2 KB; token request + authenticated `/api/collections` through the proxy both work. Normal logins have ample headroom. |
+| Idle timeout cuts Watcher imports | Not possible here — the Watcher never crosses Caddy. Its `.env` points at `http://localhost:54000/api` and `http://localhost:8080` | Two full Watcher imports (post + restore) completed normally. The exposure is browser/API-client uploads through the proxy (web-UI CKL/CKLB import on a slow link). |
+| Idle timeout cuts stalled requests | Yes — a POST to the Keycloak token endpoint through Caddy declaring 100 body bytes, sending 20, then stalling | 2.11.4: connection still fully open past 80 s. 2.11.6: **aborted at exactly 60.0 s** (client sees 499, zero bytes). A second probe dribbling 2 bytes/second was left alone and completed at ~40 s. Stalled transfers are cut; progressing ones are not. |
+| Header fields with `.` dropped | Covered by the OIDC round-trip; not separately exercised | No client traffic in this deployment uses dotted header names. |
+| Admin `/load` reload (Appendix C) | Yes — with the live Caddyfile and with a deliberately invalid config | Valid → 200. Invalid → **400** (new in 2.11.6). Site kept serving 200 after both. |
+| Undo (rollback to 2.11.4) | Not run — the twin is healthy on 2.11.6 and the old binary is in place | The commands below are the guide's own rollback, unexercised today. |
 
 ## Before you start
 
-- The Caddy 2.11.6 Windows zip downloaded to `C:\Installers` and its SHA-256
-  compared with the digest shown beside the file on the GitHub release page
-  (twin: `07429393…CC1153`, matched).
-- No backup is needed: Caddy has no database. The old binary, renamed beside
-  the new one in Step 3, is the rollback.
-- Check that the stack is healthy first (twin tool: `Test-Health.ps1`;
-  answer: `HEALTHY`, all five services Running), and that Caddy answers with
-  the old version:
-
-  ```powershell
-  C:\Services\caddy\caddy.exe version
-  ```
-
-  Answer before the update on the twin: `v2.11.4`.
+- Download `caddy_2.11.6_windows_amd64.zip` from
+  https://github.com/caddyserver/caddy/releases/tag/v2.11.6 and check its
+  SHA-256 against the digest shown beside the file on that page
+  (`07429393375227eb669e449764c5245eaac8fc69fc68b2f867717af794cc1153`).
+- Check the stack is healthy before you start:
+  `Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher` —
+  all Running. `curl.exe -sk -o NUL -w "%{http_code}" https://localhost/` → 200.
+- Caddy is a single binary; no database, no config changes. The old binary kept
+  beside the new one is the rollback, so no backup step is needed.
+- No maintenance window is required beyond a few seconds of site downtime while
+  Caddy restarts.
 
 ## Procedure
 
-Run from an elevated PowerShell, in this order, exactly as run on the twin.
+Step 16.10 of the deployment guide, as run on the twin, one command at a time.
 
-### 1. Download and verify the new binary
+### 1. Download and verify
 
 ```powershell
 $ver = '2.11.6'
@@ -91,27 +78,24 @@ Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_${ver}_windows_amd64.z
 (Get-FileHash "C:\Installers\caddy_${ver}_windows_amd64.zip" -Algorithm SHA256).Hash
 ```
 
-Correct result: the printed hash equals the SHA-256 digest shown beside the
-file on the GitHub release page. Only then extract:
+The hash must match the digest beside the file on the release page. Then:
 
 ```powershell
 Expand-Archive "C:\Installers\caddy_${ver}_windows_amd64.zip" -DestinationPath C:\Installers\caddy-$ver -Force
 ```
 
-Correct result: `C:\Installers\caddy-2.11.6\caddy.exe` exists (the archive
-extracts flat on the twin; if your archive nests `caddy.exe` in a folder, use
-that path below instead).
+On the twin the archive extracted flat (`C:\Installers\caddy-2.11.6\caddy.exe`;
+no nested folder).
 
-### 2. Validate the current Caddyfile with the new binary, before swapping
+### 2. Validate the live Caddyfile with the new binary, before swapping
 
 ```powershell
 C:\Installers\caddy-2.11.6\caddy.exe validate --config C:\Services\caddy\Caddyfile
 ```
 
-Correct result: "Valid configuration". It must report success before you
-continue; if it reports an error, fix the Caddyfile and validate again.
-On the twin it reported "Valid configuration" plus one cosmetic formatting
-warning.
+Correct result: `Valid configuration`. If it reports an error, fix the
+Caddyfile first — starting the service with a config the new binary rejects
+leaves the site down.
 
 ### 3. Swap the binary and start
 
@@ -121,86 +105,56 @@ Rename-Item C:\Services\caddy\caddy.exe caddy-2.11.4.exe.bak
 Copy-Item "C:\Installers\caddy-2.11.6\caddy.exe" C:\Services\caddy\caddy.exe -Force
 Start-Service Caddy
 C:\Services\caddy\caddy.exe version
+```
+
+Correct result: `v2.11.6 h1:sWxeamdlCZvcH4qeDz8bB0mdxgfYTeqV7HxOjXyIRas=`.
+
+### 4. Confirm the site answers through the proxy
+
+```powershell
 Get-Service Caddy | Select-Object Name, Status
 curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
 ```
 
-Correct result: the version line says `v2.11.6`, the service is `Running`, and
-the curl call prints `200` (Caddy serving TLS and proxying `/api/*`). All
-three held on the twin.
-
-### 4. Verify the paths the new defaults can break
-
-- **Header cap / login:** log in at `https://YOUR_SERVER_IP/` and confirm the
-  application loads and a collection opens. On the twin the same request path
-  was exercised without a GUI: a Keycloak token request through the `/realms/*`
-  proxy succeeded for `stigman-admin`, the issued access token was 1,073 bytes
-  (far under 16 KiB), and an authenticated `GET /api/collections` returned the
-  collection "Watcher Imports". The cap itself was proven active with
-  `curl.exe -sk -H "X-Big: <20000 chars>" -o NUL -w "%{http_code}"`
-  → `431`, while a 10 KiB header → `200`.
-- **Watcher still imports:** drop a scan result into the watched folder and
-  confirm the Watcher imports it. This does not test Caddy's idle timeout: as
-  `Install-Watcher.ps1` sets it up, the Watcher talks straight to the API on
-  `localhost:54000` and never passes through Caddy. On the twin a 12 KB result
-  (`..._XCCDF-Results_Windows_Updates-001.001.xml`, dated 2026-10-02) was
-  copied into `C:\Services\stigman-watcher\watched` at 15:40, picked up by the
-  Watcher's 15:43 scan, and recorded in `watcher-history.txt`; the asset
-  `WIN-TJ87SDPMUPH` is present in collection 1 through the API. The one
-  warning, "no reviews to post", is expected on a twin whose STIG library is
-  not fully imported and is not a Caddy fault.
-- **Full service set:**
-
-  ```powershell
-  Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
-  ```
-
-  Correct result: all five `Running` — as on the twin.
+Correct result: `Running` and `200`.
 
 ## Check that it worked
 
 ```powershell
-C:\Services\caddy\caddy.exe version
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
 curl.exe -sk -o NUL -w "%{http_code}" https://localhost/
-curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
 curl.exe -sk -o NUL -w "%{http_code}" https://localhost/realms/stigman/.well-known/openid-configuration
 ```
 
-Correct answers on the twin after the update: `v2.11.6`, `200`, `200`, `200`.
-The twin health tool's full check also returned `HEALTHY` with all five
-services Running and STIG Manager reporting 1.6.17.
+All five services Running; both endpoints 200. Then log in through the browser
+at `https://<server>/` and open a collection (Step 16.7): a login that worked
+before and fails now points at the 16 KiB header cap — if you see `431`
+responses, raise the cap with the `max_header_size` server option and reload
+Caddy (Appendix C). If a Watcher is installed, drop a result file in its watched
+folder and confirm it imports (it does not cross Caddy; this verifies the
+Watcher itself).
 
 ## Undo
+
+Not run on the twin (it is healthy on 2.11.6); the old binary is in place:
 
 ```powershell
 Stop-Service Caddy
 Remove-Item C:\Services\caddy\caddy.exe
 Rename-Item C:\Services\caddy\caddy-2.11.4.exe.bak caddy.exe
 Start-Service Caddy
-C:\Services\caddy\caddy.exe version
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
 ```
 
-Correct result: `v2.11.4`, service Running, and `https://localhost/`
-answering 200 again. **Not run on the twin** — the new version is healthy and
-`caddy-2.11.4.exe.bak` is kept in place as the rollback until this update has
-stood in production. (An older `caddy-2.11.3.exe.bak` from the previous
-update is also on disk and may be deleted once this one has stood.)
+Correct result: `200`, and `C:\Services\caddy\caddy.exe version` reports
+`v2.11.4`. There is no data or config to restore — only the binary changed.
 
 ## Not verified
 
-- A literal browser click-through of the login page (the twin has no GUI);
-  the same request path was verified programmatically through the proxy, and
-  the header sizes involved are far under the new cap.
-- A client that sends dotted or underscored request headers — none on this
-  stack does, so there was nothing to test against; the escape hatches are
-  documented above if one ever appears.
-- The Watcher talks directly to the API (`localhost:54000`), not through
-  Caddy. That is how `Install-Watcher.ps1` sets it up, so it is the same in
-  production. The 60-second abort through Caddy was proven separately in an
-  isolated 2.11.6 instance. On a server where someone has pointed a Watcher at
-  the public HTTPS address instead, confirm the first real import after the
-  update.
-- That an upload which keeps making progress is left alone. This comes from
-  the release notes; only the stalled case was tested.
-- A file upload through the web UI in a browser.
-- The undo. Its commands are above and were not run after this update.
+- An interactive browser login (no browser on the twin). Verified by
+  equivalents: UI route 200, OIDC discovery 200, token endpoint 200 through the
+  proxy, authenticated `/api/*` 200 with a real ~1.2 KB Bearer token.
+- The `write_idle` half of the idle timeouts (a backend stalling mid-response)
+  shares the same mechanism and 60 s default as the verified body-read side but
+  was not directly exercised.
+- The rollback above was not executed; the twin is healthy on the new version.
