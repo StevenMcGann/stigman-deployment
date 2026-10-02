@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, LevelFormat, ExternalHyperlink,
@@ -1252,11 +1252,11 @@ const doc = new Document({
 
       pBold("1. Download and verify the new binary"),
       code("$ver = '2.11.6'"),
-      code("$url = \"https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_$ver_windows_amd64.zip\""),
-      code("Invoke-WebRequest -Uri $url -OutFile \"C:\\Installers\\caddy_$ver_windows_amd64.zip\""),
-      code("(Get-FileHash \"C:\\Installers\\caddy_$ver_windows_amd64.zip\" -Algorithm SHA256).Hash"),
+      code("$url = \"https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_${ver}_windows_amd64.zip\""),
+      code("Invoke-WebRequest -Uri $url -OutFile \"C:\\Installers\\caddy_${ver}_windows_amd64.zip\""),
+      code("(Get-FileHash \"C:\\Installers\\caddy_${ver}_windows_amd64.zip\" -Algorithm SHA256).Hash"),
       p("Compare that hash with the SHA-256 digest shown beside the file on the GitHub release page. Only if they match, extract it (the archive contains caddy.exe):"),
-      code("Expand-Archive \"C:\\Installers\\caddy_$ver_windows_amd64.zip\" -DestinationPath C:\\Installers\\caddy-$ver -Force"),
+      code("Expand-Archive \"C:\\Installers\\caddy_${ver}_windows_amd64.zip\" -DestinationPath C:\\Installers\\caddy-$ver -Force"),
       note("If the archive extracts caddy.exe into a nested folder, use that path in the following steps instead of C:\\Installers\\caddy-$ver\\caddy.exe."),
       blank(),
 

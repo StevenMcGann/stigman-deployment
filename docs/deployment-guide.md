@@ -1503,15 +1503,15 @@ Caddy is a single binary you swap in place, like STIG Manager in Step 16.5. The 
 
 ```
 $ver = '2.11.6'
-$url = "https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_$ver_windows_amd64.zip"
-Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_$ver_windows_amd64.zip"
-(Get-FileHash "C:\Installers\caddy_$ver_windows_amd64.zip" -Algorithm SHA256).Hash
+$url = "https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_${ver}_windows_amd64.zip"
+Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_${ver}_windows_amd64.zip"
+(Get-FileHash "C:\Installers\caddy_${ver}_windows_amd64.zip" -Algorithm SHA256).Hash
 ```
 
 Compare that hash with the SHA-256 digest shown beside the file on the GitHub release page. Only if they match, extract it (the archive contains caddy.exe):
 
 ```
-Expand-Archive "C:\Installers\caddy_$ver_windows_amd64.zip" -DestinationPath C:\Installers\caddy-$ver -Force
+Expand-Archive "C:\Installers\caddy_${ver}_windows_amd64.zip" -DestinationPath C:\Installers\caddy-$ver -Force
 ```
 
 > **Note:** If the archive extracts caddy.exe into a nested folder, use that path in the following steps instead of C:\Installers\caddy-$ver\caddy.exe.
