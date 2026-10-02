@@ -56,8 +56,8 @@ for the prebuilt Windows binary.
 | Concern | Tested on the twin? | Result |
 |---|---|---|
 | 16 KiB header cap breaks login (OIDC token + cookies exceed the cap) | Yes: authenticated login through the Caddy proxy as `stigman-admin`, then an authenticated API call and a collection list. The issued token is 1,073 bytes, far under the cap | Login works, application loads, collection "Watcher Imports" opens. Cap proven active: a 20 KiB request header gets **431**, a 10 KiB header gets **200** |
-| 60-second idle timeout aborts a real Watcher import | Yes: a 12 KB scan result was dropped into the watched folder and picked up on the Watcher's next 5-minute cycle; asset `WIN-TJ87SDPMUPH` updated; import recorded in `watcher-history.txt` | Import completed within one cycle. The Watcher logs one warning, "no reviews to post", which is expected on this twin (its STIG library is not fully imported — see the runbook) and not a Caddy fault |
-| The 60-second abort itself (does it fire, and does it spare progressing uploads) | Yes, in isolation: a second 2.11.6 instance proxying to a local sink that keeps reading. A stalled 1 KB upload was aborted at **60.0 seconds** with HTTP 499; a progressing upload was never aborted | Fires exactly as documented. Progress resets the timer, so real imports that stream continuously are unaffected |
+| 60-second idle timeout aborts a real Watcher import | Does not apply as installed: `Install-Watcher.ps1` points the Watcher straight at the API (`http://localhost:54000/api`), so its imports do not pass through Caddy. An import was run anyway to confirm the Watcher still works after the update: a 12 KB scan result was dropped into the watched folder and picked up on the Watcher's next 5-minute cycle; asset `WIN-TJ87SDPMUPH` updated; import recorded in `watcher-history.txt` | Import completed within one cycle. The Watcher logs one warning, "no reviews to post", which is expected on this twin (its STIG library is not fully imported) and not a Caddy fault |
+| The 60-second abort itself (does it fire) | Yes, in isolation: a second 2.11.6 instance proxying to a local sink that keeps reading. A stalled 1 KB upload was aborted at **60.0 seconds** with HTTP 499 | Fires as documented. The release notes say an upload that keeps making progress is left alone; that half was not tested on the twin |
 | Stricter validation rejects the live Caddyfile | Yes: `validate` of `C:\Services\caddy\Caddyfile` with the new binary, before the swap | "Valid configuration" (one cosmetic formatting warning) |
 | Dot-containing headers dropped and a client relies on one | No: no client on this stack sends dotted headers (web UI, CKL export, Watcher) | Assessed by inspection; escape hatch `expected_dot_headers` is documented in the step if one ever appears |
 
@@ -139,8 +139,10 @@ three held on the twin.
   collection "Watcher Imports". The cap itself was proven active with
   `curl.exe -sk -H "X-Big: <20000 chars>" -o NUL -w "%{http_code}"`
   → `431`, while a 10 KiB header → `200`.
-- **Idle timeout / Watcher import:** drop a scan result into the watched
-  folder and confirm the Watcher imports it. On the twin a 12 KB result
+- **Watcher still imports:** drop a scan result into the watched folder and
+  confirm the Watcher imports it. This does not test Caddy's idle timeout: as
+  `Install-Watcher.ps1` sets it up, the Watcher talks straight to the API on
+  `localhost:54000` and never passes through Caddy. On the twin a 12 KB result
   (`..._XCCDF-Results_Windows_Updates-001.001.xml`, dated 2026-10-02) was
   copied into `C:\Services\stigman-watcher\watched` at 15:40, picked up by the
   Watcher's 15:43 scan, and recorded in `watcher-history.txt`; the asset
@@ -192,8 +194,13 @@ update is also on disk and may be deleted once this one has stood.)
 - A client that sends dotted or underscored request headers — none on this
   stack does, so there was nothing to test against; the escape hatches are
   documented above if one ever appears.
-- The Watcher on the twin talks directly to the API (`localhost:54000`), not
-  through Caddy, so the import itself did not traverse the proxy. The
-  60-second abort behaviour through Caddy was proven separately in an
-  isolated 2.11.6 instance; on a server where the Watcher is pointed at the
-  Caddy URL, confirm the first real import after the update.
+- The Watcher talks directly to the API (`localhost:54000`), not through
+  Caddy. That is how `Install-Watcher.ps1` sets it up, so it is the same in
+  production. The 60-second abort through Caddy was proven separately in an
+  isolated 2.11.6 instance. On a server where someone has pointed a Watcher at
+  the public HTTPS address instead, confirm the first real import after the
+  update.
+- That an upload which keeps making progress is left alone. This comes from
+  the release notes; only the stalled case was tested.
+- A file upload through the web UI in a browser.
+- The undo. Its commands are above and were not run after this update.

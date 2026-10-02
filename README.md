@@ -79,7 +79,7 @@ The standard Windows Server console (Windows PowerShell 5.1) can't reliably past
 
 ### Applying Updates
 
-Each tested update comes with a dated procedure, `deliverables/STIG-Manager-Update-<date>-Production.docx`. It gives the risk assessment, the checks to run first, every command in order, how to roll back, and what was and wasn't tested in the lab.
+Each tested update comes with a dated procedure in `deliverables/`, named `STIG-Manager-Update-<date>-<Component>.md` (records from before 2026-10-02 are Word files ending `-Production.docx`). It says what an administrator should do, what the release changes, what might break and what the test server showed, every command in order, how to undo it, and what was not verified.
 
 - Use the one with the **newest date** in its file name.
 - Each document states the versions it starts from. If your server is older than that, apply the earlier dated documents first, oldest to newest.
