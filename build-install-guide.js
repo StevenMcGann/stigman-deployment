@@ -167,7 +167,7 @@ const doc = new Document({
           new TableRow({ children: [tc("Keycloak",{w:2600}), tc("26.8.0 (ZIP)",{w:1400}), tc("keycloak.org/downloads",{w:2680}), tc("Identity/auth provider (OIDC)",{w:2680})] }),
           new TableRow({ children: [tc("STIG Manager",{w:2600}), tc("1.6.17 (ZIP)",{w:1400}), tc("github.com/NUWCDIVNPT/stig-manager",{w:2680}), tc("The application",{w:2680})] }),
           new TableRow({ children: [tc("STIG Manager Watcher",{w:2600}), tc("1.6.9 (ZIP)",{w:1400}), tc("github.com/NUWCDIVNPT/stigman-watcher",{w:2680}), tc("Automated file import (optional, Section 10)",{w:2680})] }),
-          new TableRow({ children: [tc("Caddy Server",{w:2600}), tc("2.11.6 (EXE)",{w:1400}), tc("github.com/caddyserver/caddy/releases",{w:2680}), tc("Reverse proxy with auto-TLS",{w:2680})] }),
+          new TableRow({ children: [tc("Caddy Server",{w:2600}), tc("2.11.7 (ZIP)",{w:1400}), tc("github.com/caddyserver/caddy/releases",{w:2680}), tc("Reverse proxy with auto-TLS",{w:2680})] }),
           new TableRow({ children: [tc("WinSW",{w:2600}), tc("2.12.0 (EXE)",{w:1400}), tc("github.com/winsw/winsw/releases",{w:2680}), tc("Windows service wrapper",{w:2680})] }),
         ],
       }),
@@ -193,7 +193,7 @@ const doc = new Document({
       bullet("keycloak-26.8.0.zip"),
       bullet("stig-manager-win-1.6.17.zip"),
       bullet("stigman-watcher-win-1.6.9.zip (optional, Section 10)"),
-      bullet("caddy_windows_amd64.exe (2.11.6)"),
+      bullet("caddy_2.11.7_windows_amd64.zip (contains caddy.exe; extract before the manual steps in Section 6.1)"),
       bullet("WinSW-x64.exe"),
       bullet("stigman-realm.json (provided with this guide)"),
       blank(),
@@ -1251,7 +1251,7 @@ const doc = new Document({
       blank(),
 
       pBold("1. Download and verify the new binary"),
-      code("$ver = '2.11.6'"),
+      code("$ver = '2.11.7'"),
       code("$url = \"https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_${ver}_windows_amd64.zip\""),
       code("Invoke-WebRequest -Uri $url -OutFile \"C:\\Installers\\caddy_${ver}_windows_amd64.zip\""),
       code("(Get-FileHash \"C:\\Installers\\caddy_${ver}_windows_amd64.zip\" -Algorithm SHA256).Hash"),
@@ -1261,8 +1261,8 @@ const doc = new Document({
       blank(),
 
       pBold("2. Validate the current Caddyfile with the new binary, before swapping"),
-      p("Stricter validation in 2.11.6 rejects Caddyfile constructs that earlier 2.11 releases silently accepted, so a config that started before can fail to start now. Run the new binary against the live Caddyfile before you replace anything:"),
-      code("C:\\Installers\\caddy-$ver\\caddy.exe validate --config C:\\Services\\caddy\\Caddyfile"),
+      p("Stricter validation in 2.11.6 rejects Caddyfile constructs that earlier 2.11 releases silently accepted, so a config that started before can fail to start now. Run the new binary against the live Caddyfile before you replace anything (keep the & and quotes as shown — a command path containing a variable does not expand without them):"),
+      code("& \"C:\\Installers\\caddy-$ver\\caddy.exe\" validate --config C:\\Services\\caddy\\Caddyfile"),
       p("It must report success before you continue. If it reports an error, fix the Caddyfile and validate again — starting the service with a config the new binary rejects would leave the site down."),
       blank(),
 

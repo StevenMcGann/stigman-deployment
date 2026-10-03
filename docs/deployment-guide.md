@@ -109,7 +109,7 @@ Download all of the following before starting the installation:
 | Keycloak | 26.8.0 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
 | STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
 | STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
-| Caddy Server | 2.11.6 (EXE) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
+| Caddy Server | 2.11.7 (ZIP) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
 | WinSW | 2.12.0 (EXE) | github.com/winsw/winsw/releases | Windows service wrapper |
 
 > **Note:** The versions listed are the baseline this guide was written and validated against. Newer patch releases generally work, but follow Section 16 (Applying Updates) when moving to a newer version.
@@ -139,7 +139,7 @@ Copy the following files into C:\Installers:
 - keycloak-26.8.0.zip
 - stig-manager-win-1.6.17.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
-- caddy_windows_amd64.exe (2.11.6)
+- caddy_2.11.7_windows_amd64.zip (contains caddy.exe; extract before the manual steps in Section 6.1)
 - WinSW-x64.exe
 - stigman-realm.json (provided with this guide)
 
@@ -1502,7 +1502,7 @@ Caddy is a single binary you swap in place, like STIG Manager in Step 16.5. The 
 **1. Download and verify the new binary**
 
 ```
-$ver = '2.11.6'
+$ver = '2.11.7'
 $url = "https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_${ver}_windows_amd64.zip"
 Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_${ver}_windows_amd64.zip"
 (Get-FileHash "C:\Installers\caddy_${ver}_windows_amd64.zip" -Algorithm SHA256).Hash
@@ -1518,10 +1518,10 @@ Expand-Archive "C:\Installers\caddy_${ver}_windows_amd64.zip" -DestinationPath C
 
 **2. Validate the current Caddyfile with the new binary, before swapping**
 
-Stricter validation in 2.11.6 rejects Caddyfile constructs that earlier 2.11 releases silently accepted, so a config that started before can fail to start now. Run the new binary against the live Caddyfile before you replace anything:
+Stricter validation in 2.11.6 rejects Caddyfile constructs that earlier 2.11 releases silently accepted, so a config that started before can fail to start now. Run the new binary against the live Caddyfile before you replace anything (keep the & and quotes as shown — a command path containing a variable does not expand without them):
 
 ```
-C:\Installers\caddy-$ver\caddy.exe validate --config C:\Services\caddy\Caddyfile
+& "C:\Installers\caddy-$ver\caddy.exe" validate --config C:\Services\caddy\Caddyfile
 ```
 
 It must report success before you continue. If it reports an error, fix the Caddyfile and validate again — starting the service with a config the new binary rejects would leave the site down.
