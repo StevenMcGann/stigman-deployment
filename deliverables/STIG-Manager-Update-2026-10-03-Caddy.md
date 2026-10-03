@@ -22,11 +22,13 @@ deployment uses daily:
   the reason to upgrade.
 - Over HTTP/2, Caddy could crash with a nil pointer while the reverse proxy was
   still reading a request body after the handler returned (#8101), and quiet
-  HTTP/2 streams could be reset after 60 seconds of write idle (#8118). Not
-  reproduced on the twin: its test client (curl.exe) can only speak HTTP/1.1.
-  Browsers do use HTTP/2 with this proxy (checked on the twin: Caddy negotiates
-  h2 when a client offers it), so these two fixes are the ones that matter most
-  to people using the web UI in production.
+  HTTP/2 streams could be reset after 60 seconds of write idle (#8118). Tested
+  on the twin over HTTP/2 — TLS 1.3 with ALPN h2 negotiated, the same way a
+  browser uses this proxy (the live service was checked too: it answers h2):
+  the quiet-stream reset reproduces on 2.11.6 and is gone on 2.11.7; the crash
+  did not reproduce on either version in any shape the twin can drive
+  (details below). A browser talks HTTP/2 to this proxy, so these two fixes
+  are the ones that matter most to people using the web UI in production.
 
 Also: placeholders for missing cookies/TLS fields are empty again (the live
 Caddyfile uses neither); support for the new `Incremental` header (RFC 10036) is
@@ -42,8 +44,11 @@ The 16 KiB request-header cap and the 60-second stalled-body abort introduced in
 
 | Concern | Tested on the twin? | Result |
 |---|---|---|
-| Streaming responses to requests with a body cut at 60 s (#8103) | Yes — isolated Caddy instance + local sink; a POST with a 1 KiB body answered by a response ticking every 10 s for 100 s | On 2.11.6: cut at 60.3 s, 5 of 10 ticks received, curl exit 18. On 2.11.7: all 10 ticks, 100.3 s, curl exit 0. Fixed. |
+| Streaming responses to requests with a body cut at 60 s (#8103) | Yes — isolated Caddy instance + local sink; a POST with a 1 KiB body answered by a response ticking every 10 s for 100 s | On 2.11.6: cut at 60.3 s, 5 of 10 ticks received, curl exit 18. On 2.11.7: all 10 ticks, 100.3 s, curl exit 0. Fixed. HTTP/1.1 only — the same test over HTTP/2 completed on both versions (10 of 10 ticks, 100 s), matching upstream's finding. |
+| Quiet HTTP/2 stream reset (#8118) | Yes — over HTTP/2 (TLS + ALPN h2 negotiated, like a browser): a GET answered by one chunk, a 70 s pause, a second chunk; the pause is longer than the 60 s default `write_idle` | On 2.11.6 the stream was reset with an h2 INTERNAL_ERROR stream error at +60.1 s, 1 of 2 chunks received. On 2.11.7: both chunks, clean end at +70.0 s. Fixed. |
 | The intended 60-second stalled-body abort disappears | Yes — same rig; a POST that sends half of a 1 KiB body then stalls | 2.11.6: HTTP 499 at 60.0 s. 2.11.7: HTTP 499 at 60.0 s. Identical — the regression fix did not remove the timeout. |
+| The intended stalled-write abort disappears over HTTP/2 | Yes — over HTTP/2: a GET of 1 MiB while the client reads nothing, so the proxy's write blocks on the h2 flow-control window | Stream reset at +60.0 s on both versions. The intended abort is retained over h2. |
+| HTTP/2 crash while the proxy still reads a request body (#8101) | Attempted, over HTTP/2, in eight shapes: stalled, slowly dripped and fully blasted request bodies, with the upstream answering early over HTTP/1.1 (the production shape) and over HTTP/2 (the reporter's stack), consuming the body slowly or fast, or closing; plus repeated storms totalling over 65 concurrent uploads against an early-responding upstream | No crash on either version. The panic needs a request-body read to start in the instant after the handler returns and the h2 response-writer state is released; in every shape the twin can drive, the transport aborts the body write about 3 ms after the handler returns, before a new read can start. Two wild crash reports (upstream #8101) show the race is real; it was not reproducible here. |
 | 16 KiB header cap changes | Yes — /branding/ on the live service (served by Caddy itself, so STIG Manager's own 16 KiB backend cap cannot mask the result), measured before and after | 10 KiB header → 200, 20 KiB → 431 on both versions. Unchanged. |
 | Live Caddyfile rejected by the new binary | Yes — `validate` with the 2.11.7 binary before the swap | "Valid configuration", exit 0, one known cosmetic fmt warning (same as on 2.11.6). |
 | Login / token through the proxy breaks | Yes — a service-account sign-in through the proxy after the swap (not a browser login) | Token issued through the proxy (1,198 bytes), authenticated API call 200. |
@@ -149,12 +154,13 @@ Correct result: `v2.11.6 …`, Caddy Running, 200 from
 ## Not verified
 
 - A literal browser click-through of login (the twin has no GUI); the same
-  request path was verified programmatically through the proxy.
-- The HTTP/2 fixes (#8101 crash, #8118 stream reset) — not reproduced on either
-  version on the twin; every test above went over HTTP/1.1, because curl.exe on
-  the twin cannot speak HTTP/2. A browser does use HTTP/2 through this proxy,
-  so this is the part of the release production users depend on and the twin
-  did not exercise.
+  request path was verified programmatically through the proxy, over HTTP/1.1
+  and over HTTP/2.
+- The HTTP/2 crash (#8101) — not reproduced on either version on the twin, over
+  HTTP/2, in eight shapes plus over 65 concurrent uploads (see the table). The quiet-
+  stream reset (#8118) was reproduced over HTTP/2 and is confirmed fixed. The
+  crash claim stands on the two upstream reports; a browser does use HTTP/2
+  through this proxy, and 2.11.7 contains the fix either way.
 - A direct update from 2.11.4 to 2.11.7 (the twin was already on 2.11.6).
 - Behavior of a Watcher pointed at the public HTTPS address — this deployment's
   Watcher points at localhost:54000, so its imports never traverse Caddy.
