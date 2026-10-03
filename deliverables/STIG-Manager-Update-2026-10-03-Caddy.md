@@ -23,8 +23,10 @@ deployment uses daily:
 - Over HTTP/2, Caddy could crash with a nil pointer while the reverse proxy was
   still reading a request body after the handler returned (#8101), and quiet
   HTTP/2 streams could be reset after 60 seconds of write idle (#8118). Not
-  reproduced on the twin (our clients use HTTP/1.1); the fix is in the same code
-  path, so it comes with the upgrade.
+  reproduced on the twin: its test client (curl.exe) can only speak HTTP/1.1.
+  Browsers do use HTTP/2 with this proxy (checked on the twin: Caddy negotiates
+  h2 when a client offers it), so these two fixes are the ones that matter most
+  to people using the web UI in production.
 
 Also: placeholders for missing cookies/TLS fields are empty again (the live
 Caddyfile uses neither); support for the new `Incremental` header (RFC 10036) is
@@ -44,7 +46,7 @@ The 16 KiB request-header cap and the 60-second stalled-body abort introduced in
 | The intended 60-second stalled-body abort disappears | Yes — same rig; a POST that sends half of a 1 KiB body then stalls | 2.11.6: HTTP 499 at 60.0 s. 2.11.7: HTTP 499 at 60.0 s. Identical — the regression fix did not remove the timeout. |
 | 16 KiB header cap changes | Yes — /branding/ on the live service (served by Caddy itself, so STIG Manager's own 16 KiB backend cap cannot mask the result), measured before and after | 10 KiB header → 200, 20 KiB → 431 on both versions. Unchanged. |
 | Live Caddyfile rejected by the new binary | Yes — `validate` with the 2.11.7 binary before the swap | "Valid configuration", exit 0, one known cosmetic fmt warning (same as on 2.11.6). |
-| Login / token through the proxy breaks | Yes — Test-SignIn.ps1 after the swap | Token issued through the proxy (1,198 bytes), authenticated API call 200. |
+| Login / token through the proxy breaks | Yes — a service-account sign-in through the proxy after the swap (not a browser login) | Token issued through the proxy (1,198 bytes), authenticated API call 200. |
 | Watcher imports break | Yes — MS_Edge scan result placed in the watched folder after the swap | Parsed, asset + STIG data received, 56 reviews posted, 0 rejected, recorded in watcher-history.txt. (The Watcher talks to localhost:54000 directly and does not traverse Caddy, so this is a stack check, not a Caddy check.) |
 
 ## Before you start
@@ -56,7 +58,16 @@ The 16 KiB request-header cap and the 60-second stalled-body abort introduced in
   must equal the `sha256:` digest on the release page. (Caddy's own
   `caddy_2.11.7_checksums.txt` lists SHA-512 digests, not SHA-256 — do not look
   for the SHA-256 there.)
-- Check the stack is healthy first (Test-Health.ps1: HEALTHY).
+- Check the stack is healthy first:
+  `Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher` shows
+  all Running, and
+  `curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration`
+  prints `200`.
+- This record was tested from 2.11.6. If your server is still on 2.11.4, go
+  straight to 2.11.7 with the same steps (name the old binary
+  `caddy-2.11.4.exe.bak`), and read the 2026-10-02 Caddy record as well: the
+  header cap and idle timeout it describes arrive with this update. A direct
+  2.11.4 to 2.11.7 update was not run on the twin.
 - No backup step: Caddy has no database; the old binary kept beside the new one
   is the rollback.
 
@@ -96,6 +107,7 @@ Guide Step 16.10, as run on the twin, one command at a time.
    Copy-Item "C:\Installers\caddy-$ver\caddy.exe" C:\Services\caddy\caddy.exe -Force
    Start-Service Caddy
    C:\Services\caddy\caddy.exe version
+   Get-Service Caddy | Select-Object Name, Status
    curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
    ```
 
@@ -105,16 +117,19 @@ Guide Step 16.10, as run on the twin, one command at a time.
 
 - `Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher` — all
   Running.
-- Test-Health.ps1 — HEALTHY (all five services, `/` 200,
-  `/api/op/configuration` 200 naming STIG Manager 1.6.17, OIDC discovery 200).
-- Test-SignIn.ps1 — token issued through the proxy and one authenticated API
-  call (a person's browser login is not covered by this check; the same request
-  path is what it exercises).
+- `curl.exe -sk -o NUL -w "%{http_code}" https://localhost/` and the same for
+  `https://localhost/realms/stigman/.well-known/openid-configuration` — both
+  print `200`.
+- Log in through a browser at https://YOUR_SERVER_IP/ and open a collection
+  (guide Step 16.10, part 4). The twin has no browser: there, a service account
+  was issued a token through the proxy and made one authenticated API call,
+  which exercises the same route but is not a person's login.
 - If the Watcher is installed: place a scan result in the watched folder; it
   must appear in watcher-history.txt on the next 5-minute cycle.
 - Once verified, delete the old `.bak` binaries; until then they are the undo.
 
-All of the above ran on the twin after the swap and passed.
+All of the above except the browser login ran on the twin after the swap and
+passed.
 
 ## Undo
 
@@ -136,8 +151,11 @@ Correct result: `v2.11.6 …`, Caddy Running, 200 from
 - A literal browser click-through of login (the twin has no GUI); the same
   request path was verified programmatically through the proxy.
 - The HTTP/2 fixes (#8101 crash, #8118 stream reset) — not reproduced on either
-  version on the twin; our clients (curl.exe, the Watcher, the web UI's fetch
-  calls) use HTTP/1.1 through this proxy.
+  version on the twin; every test above went over HTTP/1.1, because curl.exe on
+  the twin cannot speak HTTP/2. A browser does use HTTP/2 through this proxy,
+  so this is the part of the release production users depend on and the twin
+  did not exercise.
+- A direct update from 2.11.4 to 2.11.7 (the twin was already on 2.11.6).
 - Behavior of a Watcher pointed at the public HTTPS address — this deployment's
   Watcher points at localhost:54000, so its imports never traverse Caddy.
 

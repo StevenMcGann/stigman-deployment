@@ -193,7 +193,7 @@ const doc = new Document({
       bullet("keycloak-26.8.0.zip"),
       bullet("stig-manager-win-1.6.17.zip"),
       bullet("stigman-watcher-win-1.6.9.zip (optional, Section 10)"),
-      bullet("caddy_2.11.7_windows_amd64.zip (contains caddy.exe; extract before the manual steps in Section 6.1)"),
+      bullet("caddy_2.11.7_windows_amd64.zip (contains caddy.exe; Step 6.1 extracts it)"),
       bullet("WinSW-x64.exe"),
       bullet("stigman-realm.json (provided with this guide)"),
       blank(),
@@ -491,10 +491,11 @@ const doc = new Document({
       blank(),
 
       h2("Step 6.1: Set Up Caddy"),
-      p("Create the Caddy directory and copy the executable:"),
+      p("Create the Caddy directory, extract the release archive, and copy the executable:"),
       code("New-Item -ItemType Directory -Path C:\\Services\\caddy -Force"),
-      code("Copy-Item C:\\Installers\\caddy_windows_amd64.exe C:\\Services\\caddy\\caddy.exe"),
-      note("Caddy's GitHub release is a .zip (e.g., caddy_2.11.6_windows_amd64.zip) that contains caddy.exe. If you downloaded the zip, extract it first and copy the caddy.exe inside it to C:\\Services\\caddy\\caddy.exe. The Install-Caddy.ps1 script handles either form automatically."),
+      code("Expand-Archive C:\\Installers\\caddy_2.11.7_windows_amd64.zip -DestinationPath C:\\Installers\\caddy-2.11.7 -Force"),
+      code("Copy-Item C:\\Installers\\caddy-2.11.7\\caddy.exe C:\\Services\\caddy\\caddy.exe"),
+      note("Caddy's GitHub release is a .zip that contains caddy.exe; there is no separate .exe download there. If you staged a different version, use its file name in the two commands above. The Install-Caddy.ps1 script does the extraction for you; keep only one Caddy archive in C:\\Installers when you run it, because it takes the first one it finds."),
       blank(),
 
       h2("Step 6.2: Create the Caddyfile"),

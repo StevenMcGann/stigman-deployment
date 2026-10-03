@@ -139,7 +139,7 @@ Copy the following files into C:\Installers:
 - keycloak-26.8.0.zip
 - stig-manager-win-1.6.17.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
-- caddy_2.11.7_windows_amd64.zip (contains caddy.exe; extract before the manual steps in Section 6.1)
+- caddy_2.11.7_windows_amd64.zip (contains caddy.exe; Step 6.1 extracts it)
 - WinSW-x64.exe
 - stigman-realm.json (provided with this guide)
 
@@ -520,14 +520,15 @@ Caddy serves as the front door to your deployment. It handles HTTPS/TLS encrypti
 
 ### Step 6.1: Set Up Caddy
 
-Create the Caddy directory and copy the executable:
+Create the Caddy directory, extract the release archive, and copy the executable:
 
 ```
 New-Item -ItemType Directory -Path C:\Services\caddy -Force
-Copy-Item C:\Installers\caddy_windows_amd64.exe C:\Services\caddy\caddy.exe
+Expand-Archive C:\Installers\caddy_2.11.7_windows_amd64.zip -DestinationPath C:\Installers\caddy-2.11.7 -Force
+Copy-Item C:\Installers\caddy-2.11.7\caddy.exe C:\Services\caddy\caddy.exe
 ```
 
-> **Note:** Caddy's GitHub release is a .zip (e.g., caddy_2.11.6_windows_amd64.zip) that contains caddy.exe. If you downloaded the zip, extract it first and copy the caddy.exe inside it to C:\Services\caddy\caddy.exe. The Install-Caddy.ps1 script handles either form automatically.
+> **Note:** Caddy's GitHub release is a .zip that contains caddy.exe; there is no separate .exe download there. If you staged a different version, use its file name in the two commands above. The Install-Caddy.ps1 script does the extraction for you; keep only one Caddy archive in C:\Installers when you run it, because it takes the first one it finds.
 
 ### Step 6.2: Create the Caddyfile
 
