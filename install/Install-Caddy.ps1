@@ -16,11 +16,14 @@ New-Item -ItemType Directory -Path $caddyDir -Force | Out-Null
 if (Test-Path $caddyExe) {
     Write-Ok "caddy.exe already present at $caddyDir"
 } else {
-    $srcExe = Get-ChildItem (Join-Path $InstallersDir 'caddy*windows*amd64*.exe') -ErrorAction SilentlyContinue | Select-Object -First 1
+    # If more than one version has been staged, take the newest: by name alone
+    # the oldest sorts first.
+    $newest = { if ($_.Name -match '(\d+\.\d+\.\d+)') { [version]$Matches[1] } else { [version]'0.0.0' } }
+    $srcExe = Get-ChildItem (Join-Path $InstallersDir 'caddy*windows*amd64*.exe') -ErrorAction SilentlyContinue | Sort-Object $newest -Descending | Select-Object -First 1
     if ($srcExe) {
         Copy-Item $srcExe.FullName $caddyExe -Force
     } else {
-        $srcZip = Get-ChildItem (Join-Path $InstallersDir 'caddy*windows*amd64*.zip') -ErrorAction SilentlyContinue | Select-Object -First 1
+        $srcZip = Get-ChildItem (Join-Path $InstallersDir 'caddy*windows*amd64*.zip') -ErrorAction SilentlyContinue | Sort-Object $newest -Descending | Select-Object -First 1
         if (-not $srcZip) { Fail "No Caddy binary found in $InstallersDir (expected caddy*windows*amd64*.exe or .zip)." }
         $tmp = Join-Path $env:TEMP ("caddy-" + [guid]::NewGuid().ToString('N'))
         Expand-Archive -Path $srcZip.FullName -DestinationPath $tmp -Force

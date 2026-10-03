@@ -495,7 +495,7 @@ const doc = new Document({
       code("New-Item -ItemType Directory -Path C:\\Services\\caddy -Force"),
       code("Expand-Archive C:\\Installers\\caddy_2.11.7_windows_amd64.zip -DestinationPath C:\\Installers\\caddy-2.11.7 -Force"),
       code("Copy-Item C:\\Installers\\caddy-2.11.7\\caddy.exe C:\\Services\\caddy\\caddy.exe"),
-      note("Caddy's GitHub release is a .zip that contains caddy.exe; there is no separate .exe download there. If you staged a different version, use its file name in the two commands above. The Install-Caddy.ps1 script does the extraction for you; keep only one Caddy archive in C:\\Installers when you run it, because it takes the first one it finds."),
+      note("Caddy's GitHub release is a .zip that contains caddy.exe; there is no separate .exe download there. If you staged a different version, use its file name in the two commands above. The Install-Caddy.ps1 script does the extraction for you; if more than one Caddy archive is in C:\\Installers it uses the newest version."),
       blank(),
 
       h2("Step 6.2: Create the Caddyfile"),
