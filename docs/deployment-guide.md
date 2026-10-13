@@ -106,7 +106,7 @@ Download all of the following before starting the installation:
 |----|----|----|----|
 | MySQL Community Server | 8.4.11 (MSI) | dev.mysql.com/downloads/mysql | Database backend (STIG Manager 1.6.17 and later needs 8.4.0 or later) |
 | Microsoft OpenJDK | 17.0.20.1 (MSI) | learn.microsoft.com/java/openjdk | Java runtime for Keycloak |
-| Keycloak | 26.8.0 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
+| Keycloak | 26.8.1 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
 | STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
 | STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
 | Caddy Server | 2.11.7 (ZIP) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
@@ -136,7 +136,7 @@ Copy the following files into C:\Installers:
 
 - mysql-8.4.11-winx64.msi
 - microsoft-jdk-17.0.20.1-windows-x64.msi
-- keycloak-26.8.0.zip
+- keycloak-26.8.1.zip
 - stig-manager-win-1.6.17.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
 - caddy_2.11.7_windows_amd64.zip (contains caddy.exe; Step 6.1 extracts it)
@@ -165,7 +165,7 @@ After installation, the directory structure will be:
 
 ```
 C:\Services\
-  keycloak-26.8.0\     Keycloak identity provider
+  keycloak-26.8.1\     Keycloak identity provider
   stig-manager\        STIG Manager application
   stigman-watcher\     STIG Manager Watcher (optional)
   caddy\               Caddy reverse proxy
@@ -320,10 +320,10 @@ Extract the Keycloak ZIP to C:\Services:
 
 ```
 cd C:\Installers
-Expand-Archive keycloak-26.8.0.zip -DestinationPath C:\Services
+Expand-Archive keycloak-26.8.1.zip -DestinationPath C:\Services
 ```
 
-This creates C:\Services\keycloak-26.8.0\
+This creates C:\Services\keycloak-26.8.1\
 
 ### Step 4.2: Configure Keycloak
 
@@ -332,10 +332,10 @@ You can either copy the pre-built `keycloak.conf` from the deliverables\service-
 **Option A:** Copy from deliverables (recommended):
 
 ```
-Copy-Item C:\Installers\keycloak.conf C:\Services\keycloak-26.8.0\conf\keycloak.conf
+Copy-Item C:\Installers\keycloak.conf C:\Services\keycloak-26.8.1\conf\keycloak.conf
 ```
 
-**Option B:** Create manually. Edit C:\Services\keycloak-26.8.0\conf\keycloak.conf:
+**Option B:** Create manually. Edit C:\Services\keycloak-26.8.1\conf\keycloak.conf:
 
 ```
 # Database
@@ -376,7 +376,7 @@ $env:KC_BOOTSTRAP_ADMIN_PASSWORD = 'Admin_KC_2026!'
 2. Run the bootstrap-admin command:
 
 ```
-cd C:\Services\keycloak-26.8.0
+cd C:\Services\keycloak-26.8.1
 .\bin\kc.bat bootstrap-admin user --username admin --password:env KC_BOOTSTRAP_ADMIN_PASSWORD
 ```
 
@@ -391,7 +391,7 @@ The realm import creates the STIG Manager OIDC client, required scopes, protocol
 1. Start Keycloak in development mode:
 
 ```
-cd C:\Services\keycloak-26.8.0
+cd C:\Services\keycloak-26.8.1
 .\bin\kc.bat start-dev
 ```
 
@@ -459,7 +459,7 @@ Copy-Item C:\Installers\WinSW-x64.exe C:\Services\stig-manager\stig-manager-svc.
 2. Copy WinSW for Keycloak:
 
 ```
-Copy-Item C:\Installers\WinSW-x64.exe C:\Services\keycloak-26.8.0\keycloak-svc.exe
+Copy-Item C:\Installers\WinSW-x64.exe C:\Services\keycloak-26.8.1\keycloak-svc.exe
 ```
 
 > **Note:** WinSW requires the .exe and .xml files to share the same base name in the same directory. For example, stig-manager-svc.exe looks for stig-manager-svc.xml.
@@ -593,7 +593,7 @@ Before registering Keycloak as a service, it must be built for production mode. 
 
 ```
 $env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot'
-cd C:\Services\keycloak-26.8.0
+cd C:\Services\keycloak-26.8.1
 .\bin\kc.bat build
 ```
 
@@ -603,7 +603,7 @@ Wait for the build to complete. You should see “Server build done.”
 
 ### Step 7.2: Create the Keycloak Service Configuration
 
-Copy `keycloak-svc.xml` from deliverables\service-configs, or create it manually at C:\Services\keycloak-26.8.0\keycloak-svc.xml:
+Copy `keycloak-svc.xml` from deliverables\service-configs, or create it manually at C:\Services\keycloak-26.8.1\keycloak-svc.xml:
 
 ```
 <service>
@@ -638,7 +638,7 @@ sc.exe description Caddy 'Caddy reverse proxy for STIG Manager'
 **Keycloak (identity provider):**
 
 ```
-cd C:\Services\keycloak-26.8.0
+cd C:\Services\keycloak-26.8.1
 .\keycloak-svc.exe install
 ```
 
@@ -770,7 +770,7 @@ To make it permanent, rerun the SetEnvironmentVariable command from Section 3.
 Check the WinSW log for errors:
 
 ```
-Get-Content C:\Services\keycloak-26.8.0\keycloak-svc.err.log -Tail 30
+Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.err.log -Tail 30
 ```
 
 Common causes:
@@ -1042,7 +1042,7 @@ stigman.yourdomain.mil, localhost {
 
 **keycloak.conf — The hostname setting**
 
-Path: C:\Services\keycloak-26.8.0\conf\keycloak.conf
+Path: C:\Services\keycloak-26.8.1\conf\keycloak.conf
 
 ```
 hostname=https://stigman.yourdomain.mil
@@ -1073,7 +1073,7 @@ The script updates all three files, rebuilds Keycloak (required when hostname ch
 Keycloak must be rebuilt any time keycloak.conf changes. The configure-hostname.cmd script does this automatically. If you change the hostname manually, run:
 
 ```
-cd C:\Services\keycloak-26.8.0
+cd C:\Services\keycloak-26.8.1
 .\bin\kc.bat build
 ```
 
@@ -1402,7 +1402,7 @@ If the new version must be reverted:
 
 Keycloak updates differently from STIG Manager. STIG Manager is a single binary you swap in place; Keycloak is a full distribution installed into a version-named folder (C:\Services\keycloak-\<version>). The supported approach is to install the new version into a new folder, migrate your configuration into it, rebuild, and re-point the Windows service. Keeping the old folder gives you an instant rollback path.
 
-> **Important:** Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Releases within the same major series (for example 26.7.3 to 26.7.4, or 26.7.4 to 26.8.0) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start.
+> **Important:** Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Releases within the same major series (for example 26.8.0 to 26.8.1, or 26.7.4 to 26.8.0) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start.
 
 **1. Review the release notes and back up**
 
@@ -1419,7 +1419,7 @@ $env:MYSQL_PWD = $null
 **2. Download and extract the new version**
 
 ```
-$ver = '26.8.0'
+$ver = '26.8.1'
 Invoke-WebRequest -Uri "https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip" -OutFile "C:\Installers\keycloak-$ver.zip"
 (Get-FileHash "C:\Installers\keycloak-$ver.zip" -Algorithm SHA256).Hash
 ```
@@ -1445,7 +1445,7 @@ Copy-Item "$old\keycloak-svc.xml"     "$new\keycloak-svc.xml"     -Force
 
 **4. Build for optimized start**
 
-Build with the JDK the service itself runs on. Read it from the service wrapper, because the machine-wide JAVA_HOME can be out of date.
+Build with the JDK the service itself runs on. Read it from the service wrapper, because the machine-wide or user-level JAVA_HOME can be out of date (on the test server the user-level one still named a JDK that a later update had removed, so a build run in a fresh window without this step failed).
 
 ```
 $svc = [xml](Get-Content "$new\keycloak-svc.xml" -Raw)
@@ -1680,7 +1680,7 @@ Get-Content C:\Services\stig-manager\stig-manager-svc.out.log -Tail 50
 **View Keycloak logs:**
 
 ```
-Get-Content C:\Services\keycloak-26.8.0\keycloak-svc.out.log -Tail 50
+Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.out.log -Tail 50
 ```
 
 **View Caddy logs (if Caddy fails to start):**
