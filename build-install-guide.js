@@ -556,7 +556,7 @@ const doc = new Document({
       code("$env:JAVA_HOME = 'C:\\Program Files\\Microsoft\\jdk-17.0.20.101-hotspot'"),
       code("cd C:\\Services\\keycloak-26.8.1"),
       code(".\\bin\\kc.bat build"),
-      p("Wait for the build to complete. You should see “Server build done.”"),
+      p("Wait for the build to complete. The last message is “Server configuration updated and persisted.”"),
       important("You must run kc.bat build any time you change keycloak.conf. The service uses “start --optimized” which requires a prior build."),
       blank(),
 
@@ -1244,7 +1244,8 @@ const doc = new Document({
       p("Then verify the identity path end-to-end: the realm OIDC metadata is served, and STIG Manager login works."),
       code("(Invoke-RestMethod 'http://localhost:8080/realms/stigman/.well-known/openid-configuration').issuer"),
       code("Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status"),
-      p("Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-<oldver> folder can be archived or deleted; until then it is your rollback: stop the three services, run sc.exe config Keycloak binPath= \"C:\\Services\\keycloak-<oldver>\\keycloak-svc.exe\", and start them again in the order above. Keycloak logs a warning that the database was already migrated by the newer version and then starts normally; restore the keycloak database backup from step 1 only if it refuses to start."),
+      p("Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-<oldver> folder can be archived or deleted; until then it is your rollback: stop the three services, run sc.exe config Keycloak binPath= \"C:\\Services\\keycloak-<oldver>\\keycloak-svc.exe\", and start them again in the order above. After a rollback, read the log in the keycloak-<oldver> folder, not the new one: the new folder’s log ends with the shutdown you just performed (“Keycloak stopped”), which is easy to mistake for a failed start. The old version logs one warning, “Possibly incorrect state of migration. You are trying to run server version '<oldver>' against database, which was already migrated to newer version '<newver>'”, and then starts normally."),
+      note("This rollback was run on the test server from 26.8.1 back to 26.8.0, a patch release that made no database schema change: Keycloak 26.8.0 answered within 20 seconds, the stack was healthy, and the database backup from step 1 was not needed. A rollback across a release that does change the schema has not been run on the test server, and neither has a restore of the step-1 backup. For such a release, do not take a clean start of the old version as proof the rollback is sound; plan the restore of the step-1 backup with the rollback."),
       note("Keycloak 26.8.0 changes one behaviour that applies from this version forward: brute-force lockout data is now stored in the keycloak database by default instead of in server memory, and the previous in-memory behaviour is only available through the deprecated login-failures:v1 feature switch. The practical difference is that a temporarily locked-out user stays locked out after a Keycloak restart; before 26.8.0 the lockouts were kept in memory and a restart cleared them. The imported realm (stigman-realm.json) has brute-force protection enabled, so failed logins do lock users out. No step in this procedure changes, and the step-1 dump of the keycloak schema already covers the new table. If in-memory behaviour is specifically required, set features=login-failures:v1 in keycloak.conf and rebuild; the switch is deprecated."),
 
       h2("Step 16.10: Updating Caddy"),
