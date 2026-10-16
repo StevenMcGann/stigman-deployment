@@ -1393,10 +1393,21 @@ If the new version must be reverted:
 
 1. Stop the services (Watcher first): Stop-Service STIGManagerWatcher; Stop-Service STIGManager
 2. Restore the previous binary: remove the new exe and rename stig-manager-win.exe.bak back to stig-manager-win.exe
-3. If a database migration had run, restore the backup from Step 16.2 (the upgraded schema is not compatible with the older binary)
+3. If a database migration had run, restore the backup from Step 16.2 with the commands below, before starting the old binary (the upgraded schema is not compatible with it)
 4. Start STIGManager and verify the version, then start STIGManagerWatcher
 
 > **Important:** Rollback after a migration always requires restoring the database backup. This is why the Step 16.2 backup is mandatory for any release with a migration.
+
+To restore the Step 16.2 backup, replace \<stamp> with the timestamp in the backup file's name, and run from the same elevated PowerShell with the services stopped:
+
+```
+$env:MYSQL_PWD = '<mysql-root-password>'
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root -e "DROP DATABASE stigman"
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root -e "source C:/Backups/stigman-<stamp>.sql"
+$env:MYSQL_PWD = $null
+```
+
+> **Note:** These restore commands were run on the test server on 2026-10-16, dropping the live stigman database and restoring it from a Step 16.2 backup: both mysql commands print nothing on success, the restore of a 7 MB dump took about 4 seconds, and a dump of the restored database was identical to the backup line for line. The DROP is part of the restore: it is what removes the tables the forward migration created, which a restore over the live schema would leave behind because the backup does not know about them. The path after source uses forward slashes because the mysql client treats a backslash as an escape character. The proof the restore worked is the next step: the old binary must start and log “MySQL schema is up to date” and reach the available state with db and oidc true, exactly as in Step 16.6.
 
 ### Step 16.9: Updating Keycloak
 
@@ -1494,7 +1505,18 @@ Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-T
 
 Log in through https://YOUR_SERVER_IP/ to confirm authentication still works. Once verified, the old keycloak-\<oldver> folder can be archived or deleted; until then it is your rollback: stop the three services, run sc.exe config Keycloak binPath= "C:\Services\keycloak-\<oldver>\keycloak-svc.exe", and start them again in the order above. After a rollback, read the log in the keycloak-\<oldver> folder, not the new one: the new folder’s log ends with the shutdown you just performed (“Keycloak stopped”), which is easy to mistake for a failed start. The old version logs one warning, “Possibly incorrect state of migration. You are trying to run server version '\<oldver>' against database, which was already migrated to newer version '\<newver>'”, and then starts normally.
 
-> **Note:** This rollback was run on the test server from 26.8.1 back to 26.8.0, a patch release that made no database schema change: Keycloak 26.8.0 answered within 20 seconds, the stack was healthy, and the database backup from step 1 was not needed. A rollback across a release that does change the schema has not been run on the test server, and neither has a restore of the step-1 backup. For such a release, do not take a clean start of the old version as proof the rollback is sound; plan the restore of the step-1 backup with the rollback.
+If the release you are rolling back from changed the keycloak database schema, re-pointing the service is not enough: the old version would run against the newer schema. Restore the step-1 backup as part of the same rollback, after the services are stopped and before the old version starts. Replace \<stamp> with the timestamp in the backup file's name:
+
+```
+$env:MYSQL_PWD = '<mysql-root-password>'
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root -e "DROP DATABASE keycloak"
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root -e "source C:/Backups/keycloak-db-<stamp>.sql"
+$env:MYSQL_PWD = $null
+```
+
+> **Note:** These restore commands were run on the test server on 2026-10-16, dropping the live keycloak database and restoring it from a step-1 backup: both mysql commands print nothing on success, the restore of a 0.3 MB dump took about a second, Keycloak 26.8.1 started on the restored database with no migration lines and answered OIDC discovery 21 seconds after Start-Service, and the whole stack was healthy afterwards. A dump of the restored database was identical to the backup line for line except two column spellings in the identity_provider table — bare “tinyint” for STORE_TOKEN and HIDE_ON_LOGIN becomes the equivalent “tinyint DEFAULT NULL” — which mean the same thing and are not a corruption; the 101 tables, the data and the MIGRATION_MODEL rows all came back exactly. The DROP is part of the restore: it is what removes the tables the forward migration created, which a restore over the live schema would leave behind because the backup does not know about them. The path after source uses forward slashes because the mysql client treats a backslash as an escape character.
+
+> **Note:** The rollback above — re-pointing the service only — was run on the test server from 26.8.1 back to 26.8.0, a patch release that made no database schema change: Keycloak 26.8.0 answered within 20 seconds, the stack was healthy, and the database backup from step 1 was not needed. The restore half has since been run too, on 2026-10-16, as described above. A rollback across a release that does change the schema combines the two halves: restore the step-1 backup, re-point the service to the old folder, and only then start the old version — and do not take a clean start of the old version without the restore as proof the rollback is sound.
 
 > **Note:** Keycloak 26.8.0 changes one behaviour that applies from this version forward: brute-force lockout data is now stored in the keycloak database by default instead of in server memory, and the previous in-memory behaviour is only available through the deprecated login-failures:v1 feature switch. The practical difference is that a temporarily locked-out user stays locked out after a Keycloak restart; before 26.8.0 the lockouts were kept in memory and a restart cleared them. The imported realm (stigman-realm.json) has brute-force protection enabled, so failed logins do lock users out. No step in this procedure changes, and the step-1 dump of the keycloak schema already covers the new table. If in-memory behaviour is specifically required, set features=login-failures:v1 in keycloak.conf and rebuild; the switch is deprecated.
 

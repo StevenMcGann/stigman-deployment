@@ -244,8 +244,9 @@ schema, plan to restore the step-1 dump as part of the undo.
 - CKL / CKLB export from the web UI — needs a browser session.
 - LDAPS federation with Active Directory — not configured on the twin; no LDAP fixes are in
   this release, so nothing suggests a change in that behaviour.
-- Restoring the keycloak database dump from step 1 — never run on the twin. The undo did not
-  need it.
+- Restoring the keycloak database dump from step 1 — not run as part of this undo (it was not
+  needed). It was run on the twin on 2026-10-16 as its own test; Step 16.9 of the deployment
+  guide now carries the tested commands and result.
 - A Watcher import while rolled back to 26.8.0 — only the Watcher's sign-in was checked in
   that state; the import was run on 26.8.1, before the undo and again after returning to it.
 - Production servers' own environment (the JAVA_HOME trap depends on each server's user-level
