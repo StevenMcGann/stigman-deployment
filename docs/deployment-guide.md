@@ -87,6 +87,7 @@
   - [Step 16.8: Rollback (If Needed)](#step-168-rollback-if-needed)
   - [Step 16.9: Updating Keycloak](#step-169-updating-keycloak)
   - [Step 16.10: Updating Caddy](#step-1610-updating-caddy)
+  - [Step 16.11: Updating MySQL (Within the 8.4 LTS Series)](#step-1611-updating-mysql-within-the-84-lts-series)
 - [17. Customize the Home Page (Optional)](#17-customize-the-home-page-optional)
   - [What you can set](#what-you-can-set)
   - [Run the script](#run-the-script)
@@ -104,7 +105,7 @@ Download all of the following before starting the installation:
 
 | Component | Version | Download | Purpose |
 |----|----|----|----|
-| MySQL Community Server | 8.4.11 (MSI) | dev.mysql.com/downloads/mysql | Database backend (STIG Manager 1.6.17 and later needs 8.4.0 or later) |
+| MySQL Community Server | 8.4.13 (MSI) | dev.mysql.com/downloads/mysql | Database backend (STIG Manager 1.6.17 and later needs 8.4.0 or later) |
 | Microsoft OpenJDK | 17.0.20.1 (MSI) | learn.microsoft.com/java/openjdk | Java runtime for Keycloak |
 | Keycloak | 26.8.1 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
 | STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
@@ -134,7 +135,7 @@ New-Item -ItemType Directory -Path C:\Installers -Force
 
 Copy the following files into C:\Installers:
 
-- mysql-8.4.11-winx64.msi
+- mysql-8.4.13-winx64.msi
 - microsoft-jdk-17.0.20.1-windows-x64.msi
 - keycloak-26.8.1.zip
 - stig-manager-win-1.6.17.zip
@@ -216,7 +217,7 @@ MySQL stores all STIG Manager data (assessments, collections, STIGs) and Keycloa
 Run from an elevated PowerShell:
 
 ```
-Start-Process msiexec.exe -ArgumentList '/i', 'C:\Installers\mysql-8.4.11-winx64.msi', '/quiet' -Wait
+Start-Process msiexec.exe -ArgumentList '/i', 'C:\Installers\mysql-8.4.13-winx64.msi', '/quiet' -Wait
 ```
 
 MySQL will be installed to C:\Program Files\MySQL\MySQL Server 8.4\
@@ -1271,7 +1272,7 @@ Confirm your current running version:
 (Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition').info.version
 ```
 
-If the release notes mention a platform requirement, confirm the MySQL version as well. It must be at or above the stated minimum (the lab prints 8.4.11):
+If the release notes mention a platform requirement, confirm the MySQL version as well. It must be at or above the stated minimum (the lab prints 8.4.13):
 
 ```
 $env:MYSQL_PWD = '<mysql-root-password>'
@@ -1584,6 +1585,178 @@ Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-T
 ```
 
 Once everything is verified, you can delete the .bak binary; until then it is your rollback: stop Caddy, delete caddy.exe, rename the .bak back to caddy.exe, and start Caddy again.
+
+### Step 16.11: Updating MySQL (Within the 8.4 LTS Series)
+
+MySQL updates differently from the other components in this guide. There is no version-named folder to re-point (Keycloak's pattern, Step 16.9) and no single binary to swap (STIG Manager, Step 16.5; Caddy, Step 16.10). The MySQL Windows installer performs an in-place upgrade: running the newer installer silently over the existing installation replaces the server binaries under C:\Program Files\MySQL\MySQL Server 8.4 in about ten seconds. The data directory (C:\Program Files\MySQL\MySQL Server 8.4\data), the MySQL84 service, and any settings saved with SET PERSIST (kept in data\mysqld-auto.cnf) are not components of the installer and are left alone.
+
+The first start of the new version adjusts the data dictionary by itself — there is no script to run. The error log shows it as a pair of lines, “Server upgrade from '80411' to '80413' started” and “... completed”, about five seconds apart, between the startup banner and “ready for connections. Version: '8.4.13'”. The rollback in step 7 runs the same mechanism in reverse (“Server downgrade ... started” / “... completed”, about a second). From 8.4.13 the log also prints “Server version with update: '8.4.13.0'” — a new four-part version identity; VERSION() and @@version keep the old three-part form — and the data directory's mysql_upgrade_history file gains a row for each version the server sees, upgrade or rollback, which makes it a quick way to confirm what ran.
+
+> **Important:** There is no automatic rollback for a MySQL update, and the old MSI will not install over the new one: Windows Installer refuses (NEWERVERSIONDETECTED, exit code 1603) and changes nothing. Undoing an update is a three-part operation — uninstall the new version, install the old one, re-register the service — described in step 7. Take the step-2 backups seriously.
+
+**1. Review the release notes and confirm the current version**
+
+Read the release notes for every version between yours and the target before downloading anything: https://dev.mysql.com/doc/relnotes/mysql/8.4/en/ . Two traps to know about:
+
+- Some 8.4.x numbers are never published for Windows at all. 8.4.12, for example, was a Critical Patch Update for the MySQL Server Docker image only; it has no Windows installer, and its changes appear in the next release that does. A version number missing from the release notes or the downloads page is not an outage.
+- The release notes can lag the installer by a day around Oracle's Critical Patch Update dates (January, April, July, October). If the notes page 404s and the downloads page still lists your version as current, wait for the announcement rather than installing from an unlisted CDN path.
+
+Confirm the currently running version (the first command reads the installed binary, the second the running server):
+
+```
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe' --version
+$env:MYSQL_PWD = '<mysql-root-password>'
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root -N -e "SELECT @@version;"
+$env:MYSQL_PWD = $null
+```
+
+**2. Back up BOTH schemas**
+
+A STIG Manager update (Step 16.2) risks only the stigman schema, because only STIG Manager changes. A MySQL update risks both schemas at once — keycloak lives in the same server. Back up both with the same commands Steps 16.2 and 16.9 use:
+
+```
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$env:MYSQL_PWD = '<mysql-root-password>'
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' -u root --databases stigman --routines --triggers --single-transaction --result-file="C:\Backups\stigman-$stamp.sql"
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe' -u root --databases keycloak --routines --triggers --single-transaction --result-file="C:\Backups\keycloak-db-$stamp.sql"
+$env:MYSQL_PWD = $null
+Get-Item C:\Backups\*-*.sql | Sort-Object LastWriteTime | Select-Object Name, Length
+```
+
+mysql and mysqldump print nothing on success. The proof is the exit code and the two files that appear in the listing, each a few megabytes or more, ending in a “-- Dump completed on” line (check with Get-Content \<file> -Tail 1).
+
+**3. Download the installer and verify its signature**
+
+Download the MSI for the target version from the MySQL 8.4 downloads page (https://dev.mysql.com/downloads/mysql/8.4.html — the “Windows (x86, 64-bit), MSI Installer” entry; you do not need to sign in, use the “No thanks, just start my download” link). The link points at Oracle's CDN, whose URL always follows this pattern:
+
+```
+$ver = '8.4.13'
+$url = "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-$ver-winx64.msi"
+Invoke-WebRequest -Uri $url -OutFile "C:\Installers\mysql-$ver-winx64.msi"
+```
+
+Oracle publishes no SHA-256 for the installer at that path. The integrity check on Windows is the installer's digital signature: it must report Valid, and the signer must be Oracle. If it does not, delete the file and download it again from the downloads page.
+
+```
+$sig = Get-AuthenticodeSignature "C:\Installers\mysql-$ver-winx64.msi"
+$sig.Status            # must be Valid
+$sig.SignerCertificate.Subject    # must name Oracle America, Inc.
+```
+
+Record the hash as well, so you can prove afterwards that the file you ran is the file you checked:
+
+```
+(Get-FileHash "C:\Installers\mysql-$ver-winx64.msi" -Algorithm SHA256).Hash
+```
+
+**4. Stop the stack**
+
+Everything above MySQL comes down first, in reverse start order. MySQL84 has dependents (Keycloak depends on it; STIG Manager depends on both; the Watcher on STIG Manager), so stopping in this order avoids the “dependent services” error Step 16.4 describes. Caddy keeps running; it serves errors while the backends are down, which is harmless and proves the proxy is still up.
+
+```
+Stop-Service STIGManagerWatcher   # skip if the Watcher is not installed
+Stop-Service STIGManager
+Stop-Service Keycloak
+Stop-Service MySQL84
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
+```
+
+All except Caddy must report Stopped. On the test server the Watcher and STIG Manager each stopped in well under a second, Keycloak in about fifteen seconds (printing “Waiting for service ... to stop” warnings as it goes — normal), and MySQL84 about one second after that.
+
+**5. Run the installer**
+
+```
+$ver = '8.4.13'
+$p = Start-Process msiexec.exe -ArgumentList '/i', "C:\Installers\mysql-$ver-winx64.msi", '/quiet', '/norestart', '/l*v', "C:\Installers\mysql-$ver-install.log" -Wait -PassThru
+$p.ExitCode     # must be 0
+```
+
+The installer upgrades in place: same folder, no new version-named directory, about ten seconds. It does not touch the MySQL84 service — sc.exe qc MySQL84 is identical before and after, and the install log contains no service actions — and it does not touch the data directory. Do not use the data-directory file count as a check: the count changes between “running” and “stopped” by itself, because the server removes session temp tablespaces at shutdown and adds a binlog file at each start. The health checks are the error log, the version strings, and the app-level checks in step 6.
+
+**6. Start and verify**
+
+Start MySQL first, then confirm the server itself is the new version before anything that depends on it comes up:
+
+```
+Start-Service MySQL84
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe' --version
+$env:MYSQL_PWD = '<mysql-root-password>'
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' -u root -N -e "SELECT @@version; SELECT @@binlog_expire_logs_seconds;"
+$env:MYSQL_PWD = $null
+```
+
+Start-Service takes several seconds and prints “Waiting for service 'MySQL84' to start...” warnings — normal. Both version strings must name the new release. The binlog expiry is a SET PERSIST setting from Step 2.3 (604800 on the test server); the same value after the upgrade proves the persisted settings survived. Then check the error log for a clean start — an unbroken sequence: the shutdown you performed in step 4, the new startup banner, the “Server upgrade from ... started/completed” pair, and “ready for connections. Version:” naming the new release:
+
+```
+Get-Content 'C:\Program Files\MySQL\MySQL Server 8.4\data\*.err' -Tail 40
+```
+
+The mysql_upgrade_history file in the same data directory gains a row naming the new version — a quick confirmation that the upgrade step ran:
+
+```
+Get-Content 'C:\Program Files\MySQL\MySQL Server 8.4\data\mysql_upgrade_history'
+```
+
+Bring the rest up in start order, the same sequence as Step 16.9 step 6:
+
+```
+Start-Service Keycloak
+$n = 0; do { Start-Sleep -Seconds 5; $n++; $code = curl.exe -s -o NUL -w "%{http_code}" http://localhost:8080/realms/stigman/.well-known/openid-configuration; $code } until ($code -eq '200' -or $n -ge 36)
+Start-Service STIGManager
+Start-Service STIGManagerWatcher
+```
+
+Confirm the STIG Manager start in its log (the same signals as Step 16.6 — “MySQL schema is up to date” and the state-changed line with db and oidc true; the mysql preflight line also reports the MySQL version it now talks to), then verify the whole stack:
+
+```
+Get-Content C:\Services\stig-manager\stig-manager-svc.out.log -Tail 15
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
+```
+
+The API check through Caddy must print 200 and name the STIG Manager version you expect (the MySQL update does not change it). Log in through the browser at https://YOUR_SERVER_IP/ and open a collection. If the Watcher is installed, confirm it reconnected (“preflight api requests succeeded” in its log, as in Step 16.7) and, to prove writes end-to-end, import one scan result and see it counted in the Watcher's history file on its next scan.
+
+**7. Rollback (if needed)**
+
+There is no automatic undo; a person runs these. If the new version must be reverted (for example a compatibility problem appears after you installed), the previous version goes back in three parts: uninstall the new one, install the old one, re-register the service. Every part was run on the test server on 2026-10-20, reverting 8.4.13 to 8.4.11 and returning to 8.4.13 afterwards.
+
+**(a) Stop the stack exactly as in step 4. The step-2 backups remain your safety net. The uninstall in the next part does not remove the data directory — on the test server every file survived it — but if you want a physical copy while the server is stopped, one command makes one:**
+
+```
+Copy-Item 'C:\Program Files\MySQL\MySQL Server 8.4\data' C:\Backups\mysqldata-backup -Recurse
+```
+
+**(b) Uninstall the installed MySQL Server. Find its product code first:**
+
+```
+Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'MySQL Server 8.4*' } | Select-Object DisplayName, DisplayVersion, PSChildName
+```
+
+The PSChildName of the row whose DisplayVersion is the version you are removing is its product code GUID. Uninstall with it (about seven seconds):
+
+```
+$p = Start-Process msiexec.exe -ArgumentList '/x', '<product-code-guid>', '/quiet', '/norestart', '/l*v', 'C:\Installers\mysql-uninstall.log' -Wait -PassThru
+$p.ExitCode     # must be 0
+```
+
+This removes the server binaries and the MySQL84 service, and leaves the data directory in place. The dependents (Keycloak, STIG Manager, the Watcher) reference MySQL84 by name in their own service configurations and are not affected; they re-resolve when the service returns.
+
+**(c) Install the previous version's MSI — past 8.4.x installers remain on Oracle's CDN at the same URL pattern, and also appear under the “Looking for previous GA versions?” link on the downloads page and in the archives (https://downloads.mysql.com/archives/community/) — then re-register the service, because the uninstall removed it and the installer does not create it (about six seconds):**
+
+```
+$p = Start-Process msiexec.exe -ArgumentList '/i', "C:\Installers\mysql-<oldver>-winx64.msi", '/quiet', '/norestart', '/l*v', "C:\Installers\mysql-<oldver>-install.log" -Wait -PassThru
+$p.ExitCode     # must be 0
+& 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe' --install MySQL84
+```
+
+“Service successfully installed.” is the expected reply. This is the same command the install scripts use to register the service (install\Initialize-MySql.ps1); it recreates MySQL84 exactly as it was — same binary path and arguments, Automatic start, LocalSystem. Do not run mysqld with --initialize options here: those are for creating a new, empty data directory, and you are keeping the existing one.
+
+**(d) Start and verify exactly as in step 6, with two differences. The error log now shows the pair “Server downgrade from '80413' to '80411' started” and “... completed” (about a second) before “ready for connections. Version:” naming the old release — the data dictionary adjusts itself backward, so there is no restore to do. And mysql_upgrade_history gains a row naming the old version, confirming the rollback ran. The persisted settings, both schemas, and their contents come through unchanged: on the test server the object counts were identical before and after the whole round trip (stigman: 35 tables, 5 views, 12 routines; keycloak: 101 tables), the stack came up healthy, and a sign-in and a Watcher import worked on the rolled-back version.**
+
+Only if the data was damaged (the server will not start, or the schemas fail integrity checks) do you also restore the step-2 backups, with the commands and the caveats from Step 16.8 (stigman) and Step 16.9 (keycloak): DROP DATABASE, then source the dump with forward slashes in the path, silent on success. That combination — a within-8.4 reinstall plus a restore — has not been needed on the test server to date; the restore halves themselves are the commands tested on 2026-10-16.
+
+> **Important:** Do not try to shortcut the rollback by installing the previous MSI over the installed newer one. Windows Installer refuses — the install log shows NEWERVERSIONDETECTED and msiexec returns 1603 — and the binaries stay at the newer version. Uninstall first, then install, then re-register the service. And remember that the rollback reopens the security holes the update closed: schedule the forward update again as soon as the cause of the rollback is understood.
+
+> **Note:** The whole round trip was run on the test server on 2026-10-20 with 8.4.11 and 8.4.13: a forward upgrade (msiexec exit 0 in 10 seconds, automatic data-dictionary upgrade on first start, all services back and healthy, sign-in through the proxy working, a Watcher import posting 56 review updates), the rollback per parts (a)–(d) (uninstall 7 seconds, install 6 seconds, service re-registered, automatic data-dictionary downgrade on first start, healthy stack and working sign-in on 8.4.11), then the forward upgrade to 8.4.13 again with the same healthy results. The MySQL84 service definition after the rollback was identical to before the update: same binary path and arguments, Automatic start, LocalSystem, no recovery actions, and the Keycloak and STIG Manager dependencies resolved again on their own.
 
 ## 17. Customize the Home Page (Optional)
 
