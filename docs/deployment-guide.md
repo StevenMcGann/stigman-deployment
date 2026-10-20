@@ -1632,8 +1632,11 @@ Download the MSI for the target version from the MySQL 8.4 downloads page (https
 ```
 $ver = '8.4.13'
 $url = "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-$ver-winx64.msi"
-Invoke-WebRequest -Uri $url -OutFile "C:\Installers\mysql-$ver-winx64.msi"
+curl.exe -s -o "C:\Installers\mysql-$ver-winx64.msi" $url
+$LASTEXITCODE     # must be 0
 ```
+
+curl.exe is built into Windows Server 2019 and 2022, and it is what downloaded the installer on the test server (136 MB, a few seconds on its connection). Invoke-WebRequest, which other update steps use, was not the command tested for this file, and in Windows PowerShell 5.1 it is very slow for a file this size.
 
 Oracle publishes no SHA-256 for the installer at that path. The integrity check on Windows is the installer's digital signature: it must report Valid, and the signer must be Oracle. If it does not, delete the file and download it again from the downloads page.
 
@@ -1719,13 +1722,17 @@ The API check through Caddy must print 200 and name the STIG Manager version you
 
 There is no automatic undo; a person runs these. If the new version must be reverted (for example a compatibility problem appears after you installed), the previous version goes back in three parts: uninstall the new one, install the old one, re-register the service. Every part was run on the test server on 2026-10-20, reverting 8.4.13 to 8.4.11 and returning to 8.4.13 afterwards.
 
-**(a) Stop the stack exactly as in step 4. The step-2 backups remain your safety net. The uninstall in the next part does not remove the data directory — on the test server every file survived it — but if you want a physical copy while the server is stopped, one command makes one:**
+**(a) Stop the stack**
+
+Stop the stack exactly as in step 4. The step-2 backups remain your safety net. The uninstall in the next part does not remove the data directory — on the test server every file survived it — but if you want a physical copy while the server is stopped, one command makes one:
 
 ```
 Copy-Item 'C:\Program Files\MySQL\MySQL Server 8.4\data' C:\Backups\mysqldata-backup -Recurse
 ```
 
-**(b) Uninstall the installed MySQL Server. Find its product code first:**
+**(b) Uninstall the installed version**
+
+Find the installed MySQL Server's product code first:
 
 ```
 Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'MySQL Server 8.4*' } | Select-Object DisplayName, DisplayVersion, PSChildName
@@ -1740,7 +1747,9 @@ $p.ExitCode     # must be 0
 
 This removes the server binaries and the MySQL84 service, and leaves the data directory in place. The dependents (Keycloak, STIG Manager, the Watcher) reference MySQL84 by name in their own service configurations and are not affected; they re-resolve when the service returns.
 
-**(c) Install the previous version's MSI — past 8.4.x installers remain on Oracle's CDN at the same URL pattern, and also appear under the “Looking for previous GA versions?” link on the downloads page and in the archives (https://downloads.mysql.com/archives/community/) — then re-register the service, because the uninstall removed it and the installer does not create it (about six seconds):**
+**(c) Install the previous version and re-register the service**
+
+Install the previous version's MSI — past 8.4.x installers remain on Oracle's CDN at the same URL pattern, and also appear under the “Looking for previous GA versions?” link on the downloads page and in the archives (https://downloads.mysql.com/archives/community/) — then re-register the service, because the uninstall removed it and the installer does not create it (about six seconds):
 
 ```
 $p = Start-Process msiexec.exe -ArgumentList '/i', "C:\Installers\mysql-<oldver>-winx64.msi", '/quiet', '/norestart', '/l*v', "C:\Installers\mysql-<oldver>-install.log" -Wait -PassThru
@@ -1750,7 +1759,9 @@ $p.ExitCode     # must be 0
 
 “Service successfully installed.” is the expected reply. This is the same command the install scripts use to register the service (install\Initialize-MySql.ps1); it recreates MySQL84 exactly as it was — same binary path and arguments, Automatic start, LocalSystem. Do not run mysqld with --initialize options here: those are for creating a new, empty data directory, and you are keeping the existing one.
 
-**(d) Start and verify exactly as in step 6, with two differences. The error log now shows the pair “Server downgrade from '80413' to '80411' started” and “... completed” (about a second) before “ready for connections. Version:” naming the old release — the data dictionary adjusts itself backward, so there is no restore to do. And mysql_upgrade_history gains a row naming the old version, confirming the rollback ran. The persisted settings, both schemas, and their contents come through unchanged: on the test server the object counts were identical before and after the whole round trip (stigman: 35 tables, 5 views, 12 routines; keycloak: 101 tables), the stack came up healthy, and a sign-in and a Watcher import worked on the rolled-back version.**
+**(d) Start and verify**
+
+Start and verify exactly as in step 6, with two differences. The error log now shows the pair “Server downgrade from '80413' to '80411' started” and “... completed” (about a second) before “ready for connections. Version:” naming the old release — the data dictionary adjusts itself backward, so there is no restore to do. And mysql_upgrade_history gains a row naming the old version, confirming the rollback ran. The persisted settings, both schemas, and their contents come through unchanged: on the test server the object counts were identical before and after the whole round trip (stigman: 35 tables, 5 views, 12 routines; keycloak: 101 tables), the stack came up healthy, and a sign-in and a Watcher import worked on the rolled-back version.
 
 Only if the data was damaged (the server will not start, or the schemas fail integrity checks) do you also restore the step-2 backups, with the commands and the caveats from Step 16.8 (stigman) and Step 16.9 (keycloak): DROP DATABASE, then source the dump with forward slashes in the path, silent on success. That combination — a within-8.4 reinstall plus a restore — has not been needed on the test server to date; the restore halves themselves are the commands tested on 2026-10-16.
 

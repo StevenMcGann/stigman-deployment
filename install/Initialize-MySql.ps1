@@ -11,7 +11,11 @@ Write-Step "Installing MySQL 8.4 (if not already installed)"
 if (Test-Path $mysqld) {
     Write-Ok "MySQL already installed at $MySqlBin"
 } else {
-    $msi = Get-ChildItem (Join-Path $InstallersDir 'mysql-*-winx64.msi') -ErrorAction SilentlyContinue | Select-Object -First 1
+    # If more than one version has been staged (the update steps keep the
+    # previous installer for rollback), take the newest: by name alone 8.4.11
+    # sorts before 8.4.13 and 8.4.9.
+    $newest = { if ($_.Name -match '(\d+\.\d+\.\d+)') { [version]$Matches[1] } else { [version]'0.0.0' } }
+    $msi = Get-ChildItem (Join-Path $InstallersDir 'mysql-*-winx64.msi') -ErrorAction SilentlyContinue | Sort-Object $newest -Descending | Select-Object -First 1
     if (-not $msi) { Fail "MySQL MSI not found in $InstallersDir (expected mysql-*-winx64.msi)." }
     Write-Note "Running $($msi.Name) ..."
     Start-Process msiexec.exe -ArgumentList '/i', "`"$($msi.FullName)`"", '/quiet' -Wait
