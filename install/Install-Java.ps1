@@ -8,7 +8,10 @@ Write-Step "Installing Microsoft OpenJDK 17"
 if (Test-Path (Join-Path $JdkHome 'bin\java.exe')) {
     Write-Ok "JDK already present at $JdkHome"
 } else {
-    $msi = Get-ChildItem (Join-Path $InstallersDir 'microsoft-jdk-*-windows-x64.msi') -ErrorAction SilentlyContinue | Select-Object -First 1
+    # If more than one version has been staged, take the newest: by name alone
+    # 17.0.19 sorts before 17.0.20 and 17.0.20.1. Versions can have four parts.
+    $newest = { if ($_.Name -match '(\d+(\.\d+){1,3})') { [version]$Matches[1] } else { [version]'0.0' } }
+    $msi = Get-ChildItem (Join-Path $InstallersDir 'microsoft-jdk-*-windows-x64.msi') -ErrorAction SilentlyContinue | Sort-Object $newest -Descending | Select-Object -First 1
     if (-not $msi) { Fail "JDK MSI not found in $InstallersDir (expected microsoft-jdk-*-windows-x64.msi)." }
     Write-Note "Running $($msi.Name) ..."
     Start-Process msiexec.exe -ArgumentList '/i', "`"$($msi.FullName)`"", '/quiet' -Wait
