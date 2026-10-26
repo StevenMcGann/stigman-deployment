@@ -62,15 +62,21 @@ Write-Step "Removing compromised eMudhra root certificates (openjdk.org/emudhra)
 $keystore = Join-Path $JdkHome 'lib\security\cacerts'
 $keytool = Join-Path $JdkHome 'bin\keytool.exe'
 if (-not (Test-Path $keystore)) { Fail "cacerts not found at $keystore." }
-Copy-Item $keystore "$keystore.bak" -ErrorAction SilentlyContinue
-$affected = @(& $keytool -list -cacerts -storepass changeit |
-    Select-String emsign,emudhra |
-    ForEach-Object { ($_.Line -replace ', [A-Z][a-z]{2} \d{1,2}, \d{4}, trustedCertEntry.*$', '').Trim() })
+# Keep the first backup: on a re-run the keystore is already cleaned.
+if (-not (Test-Path "$keystore.bak")) { Copy-Item $keystore "$keystore.bak" }
+$findAffected = {
+    @(& $keytool -list -cacerts -storepass changeit |
+        Select-String emsign,emudhra,aaa_certificate_services |
+        ForEach-Object { ($_.Line -replace ', [A-Z][a-z]{2} \d{1,2}, \d{4}, trustedCertEntry.*$', '').Trim() })
+}
+$affected = & $findAffected
 if ($affected.Count -gt 0) {
     foreach ($alias in $affected) {
         $null = & $keytool -delete -cacerts -storepass changeit -alias $alias 2>&1
-        Write-Ok "removed $alias"
     }
+    $left = & $findAffected
+    if ($left.Count -gt 0) { Fail "Could not remove from ${keystore}: $($left -join '; ')" }
+    $affected | ForEach-Object { Write-Ok "removed $_" }
 } else {
     Write-Ok "none present in $JdkHome (this build already excludes them)"
 }

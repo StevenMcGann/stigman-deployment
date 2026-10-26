@@ -31,9 +31,14 @@ covered by the twin's checks.
   advisories 2026-10-21 and 2026-10-24, the latter superseding the former with
   CVE-2026-114820 / JDK-8395690, CVSS 9.1, javax.net.ssl, affecting 17.0.21.0.2
   and earlier). The interim action is to delete the affected roots from the
-  truststore of every installed JDK. Microsoft's 17.0.21.0.2 truststore still
-  contains one of the four affected roots (emSign Root CA – G1); the older
-  17.0.20.1 build contains four (G1, ECC G3, C1, ECC C3).
+  truststore of every installed JDK. The advisory names four roots: emSign
+  Root CA – G1, emSign Root CA – G2, emSign ECC Root CA – G3 and Comodo AAA
+  Certificate Services. Microsoft's 17.0.21.0.2 truststore contains one of
+  them (G1). The older 17.0.20.1 build contains G1 and ECC G3, plus two more
+  eMudhra roots the advisory does not name (C1 and ECC C3); these are removed
+  too, because the same company operates them and Microsoft's own 17.0.21.0.2
+  build no longer ships them. Neither build contains G2 or Comodo AAA (checked
+  by listing both stores on the twin).
 - Keycloak itself does not change: version 26.8.1, no kc.bat build (the JVM is
   not baked into the optimized image), no database change, no schema change.
 - JDK versions are now five-part ("17.0.21.0.2"); `java -version` prints the

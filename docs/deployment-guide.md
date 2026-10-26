@@ -1864,14 +1864,14 @@ Copy-Item "C:\Program Files\Microsoft\jdk-${ver}\lib\security\cacerts" "C:\Progr
 & "C:\Program Files\Microsoft\jdk-${ver}\bin\keytool.exe" -delete -cacerts -storepass changeit -alias 'cn=emsign_root_ca_-_g1,o=emudhra_technologies_limited,ou=emsign_pki,c=in'
 ```
 
-Then the same three commands against the old JDK (C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot), whose truststore has four entries to remove:
+Then the same three commands against the old JDK (C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot), whose truststore has four eMudhra (emSign) roots to remove. The first two correspond to roots the advisory names (emsignrootcag1, emsigneccrootcag3); the other two, C1 and ECC C3, are not named by the advisory but are operated by the same company and are already absent from Microsoft’s 17.0.21.0.2 build, so they are removed too:
 
 - cn=emsign_root_ca_-_g1,o=emudhra_technologies_limited,ou=emsign_pki,c=in
 - cn=emsign_ecc_root_ca_-_g3,o=emudhra_technologies_limited,ou=emsign_pki,c=in
 - cn=emsign_root_ca_-_c1,o=emudhra_inc,ou=emsign_pki,c=us
 - cn=emsign_ecc_root_ca_-_c3,o=emudhra_inc,ou=emsign_pki,c=us
 
-Delete each with the same keytool -delete command, substituting the alias. changeit is the documented default password of the JDK cacerts keystore, not a site secret. A delete that reports “alias does not exist” is harmless — it means that build already dropped the root. A later JDK whose release notes name JDK-8395690 ships without these roots, and this step finds nothing to do.
+Delete each with the same keytool -delete command, substituting the alias. changeit is the documented default password of the JDK cacerts keystore, not a site secret. A delete that reports “alias does not exist” is harmless — it means that build already dropped the root. A later JDK whose release notes name JDK-8395690 ships without these roots, and this step finds nothing to do. The advisory also names two roots that neither Microsoft build on the test server contains, checked by listing: emSign Root CA – G2 (emsignrootcag2) and Comodo’s AAA Certificate Services (comodoaaaca). If your JDK’s list shows either one (search the list for emsign and for aaa_certificate_services), delete it the same way.
 
 **5. Re-point the runtime**
 
