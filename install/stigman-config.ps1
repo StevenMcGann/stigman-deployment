@@ -29,7 +29,7 @@ $KeycloakVersion = '26.8.1'
 $StigmanVersion  = '1.6.17'
 
 # ---- Tool locations (defaults match the guide) -----------------
-$JdkHome  = 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot'
+$JdkHome  = 'C:\Program Files\Microsoft\jdk-17.0.21.0.2'
 $MySqlBin = 'C:\Program Files\MySQL\MySQL Server 8.4\bin'
 
 # ---- Package paths (auto-derived; normally no need to edit) -----

@@ -88,6 +88,7 @@
   - [Step 16.9: Updating Keycloak](#step-169-updating-keycloak)
   - [Step 16.10: Updating Caddy](#step-1610-updating-caddy)
   - [Step 16.11: Updating MySQL (Within the 8.4 LTS Series)](#step-1611-updating-mysql-within-the-84-lts-series)
+  - [Step 16.12: Updating the JDK (Microsoft OpenJDK 17)](#step-1612-updating-the-jdk-microsoft-openjdk-17)
 - [17. Customize the Home Page (Optional)](#17-customize-the-home-page-optional)
   - [What you can set](#what-you-can-set)
   - [Run the script](#run-the-script)
@@ -106,7 +107,7 @@ Download all of the following before starting the installation:
 | Component | Version | Download | Purpose |
 |----|----|----|----|
 | MySQL Community Server | 8.4.13 (MSI) | dev.mysql.com/downloads/mysql | Database backend (STIG Manager 1.6.17 and later needs 8.4.0 or later) |
-| Microsoft OpenJDK | 17.0.20.1 (MSI) | learn.microsoft.com/java/openjdk | Java runtime for Keycloak |
+| Microsoft OpenJDK | 17.0.21.0.2 (ZIP) | learn.microsoft.com/java/openjdk | Java runtime for Keycloak |
 | Keycloak | 26.8.1 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
 | STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
 | STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
@@ -136,7 +137,8 @@ New-Item -ItemType Directory -Path C:\Installers -Force
 Copy the following files into C:\Installers:
 
 - mysql-8.4.13-winx64.msi
-- microsoft-jdk-17.0.20.1-windows-x64.msi
+- microsoft-jdk-17.0.21.0.2-windows-x64.zip
+- microsoft-jdk-17.0.21.0.2-windows-x64.zip.sha256sum.txt
 - keycloak-26.8.1.zip
 - stig-manager-win-1.6.17.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
@@ -287,29 +289,58 @@ EXIT;
 
 Keycloak requires Java 17 to run. Microsoft’s build of OpenJDK is recommended for Windows Server.
 
-1. Run the OpenJDK MSI installer:
+1. Download the OpenJDK ZIP and its published SHA-256 file from learn.microsoft.com/java/openjdk/download (the 17.0.21.0.2 section, Windows x64 zip) into C:\Installers:
 
 ```
-Start-Process msiexec.exe -ArgumentList '/i', 'C:\Installers\microsoft-jdk-17.0.20.1-windows-x64.msi', '/quiet' -Wait
+$jdkZip = "https://aka.ms/download-jdk/microsoft-jdk-17.0.21.0.2-windows-x64.zip"
+curl.exe -sL -o C:\Installers\microsoft-jdk-17.0.21.0.2-windows-x64.zip $jdkZip
+curl.exe -sL -o C:\Installers\microsoft-jdk-17.0.21.0.2-windows-x64.zip.sha256sum.txt "$jdkZip.sha256sum.txt"
 ```
 
-2. Set the JAVA_HOME environment variable:
+2. Verify the download against the published digest. Only if the comparison prints True, continue:
 
 ```
-[System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot', 'Machine')
+$published = ((Get-Content C:\Installers\microsoft-jdk-17.0.21.0.2-windows-x64.zip.sha256sum.txt) -split '\s+')[0]
+$actual = (Get-FileHash C:\Installers\microsoft-jdk-17.0.21.0.2-windows-x64.zip -Algorithm SHA256).Hash
+$published -eq $actual
 ```
 
-3. Refresh your session and verify Java is accessible:
+3. Extract the ZIP into C:\Program Files\Microsoft, then rename the folder it creates (the +1 is the build number; dropping it keeps the path free of special characters):
 
 ```
-$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot'
+Expand-Archive C:\Installers\microsoft-jdk-17.0.21.0.2-windows-x64.zip -DestinationPath 'C:\Program Files\Microsoft'
+Rename-Item 'C:\Program Files\Microsoft\jdk-17.0.21.0.2+1' 'jdk-17.0.21.0.2'
+```
+
+4. Remove the compromised eMudhra root from the new JDK’s truststore. The private keys of eight eMudhra intermediate CA certificates were compromised (openjdk.org/emudhra; OpenJDK advisories 2026-10-21 and 2026-10-24, CVE-2026-114820), and this build still trusts one of the affected roots. Back up the keystore beside it, list the entries, and delete the entry shown (Microsoft names entries by their full DN, not by the short aliases used in the OpenJDK advisory):
+
+```
+Copy-Item 'C:\Program Files\Microsoft\jdk-17.0.21.0.2\lib\security\cacerts' 'C:\Program Files\Microsoft\jdk-17.0.21.0.2\lib\security\cacerts.bak'
+& 'C:\Program Files\Microsoft\jdk-17.0.21.0.2\bin\keytool.exe' -list -cacerts -storepass changeit | Select-String emsign,emudhra
+& 'C:\Program Files\Microsoft\jdk-17.0.21.0.2\bin\keytool.exe' -delete -cacerts -storepass changeit -alias 'cn=emsign_root_ca_-_g1,o=emudhra_technologies_limited,ou=emsign_pki,c=in'
+```
+
+changeit is the JDK cacerts keystore’s documented default password, not a site secret. If the list command prints nothing, a newer JDK build has already removed the root and there is nothing to delete; a delete that reports “alias does not exist” means the same and is harmless.
+
+5. Set the JAVA_HOME environment variable:
+
+```
+[System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-17.0.21.0.2', 'Machine')
+```
+
+6. Refresh your session and verify Java is accessible:
+
+```
+$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.21.0.2'
 $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 java -version
 ```
 
-You should see output showing OpenJDK 17.0.20.1.
+You should see output showing OpenJDK 17.0.21.0.2.
 
 > **Note:** The SetEnvironmentVariable command persists JAVA_HOME permanently, but the current PowerShell session needs the two $env lines to pick it up immediately. New PowerShell windows will have it automatically.
+
+> **Note:** Use the ZIP distribution, never the MSI: the MSI removes the previous JDK as part of installing the new one — on the test server an MSI update left only an empty husk of the old JDK folder — which takes away the rollback the update procedure in Step 16.12 relies on. The aka.ms download links redirect to Microsoft’s CDN; curl.exe follows redirects only with -L, and without it the file arrives empty.
 
 ## 4. Install and Configure Keycloak
 
@@ -593,7 +624,7 @@ All commands in this section must be run in an elevated (Administrator) PowerShe
 Before registering Keycloak as a service, it must be built for production mode. The build step reads keycloak.conf and optimizes Keycloak’s startup configuration.
 
 ```
-$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot'
+$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.21.0.2'
 cd C:\Services\keycloak-26.8.1
 .\bin\kc.bat build
 ```
@@ -613,7 +644,7 @@ Copy `keycloak-svc.xml` from deliverables\service-configs, or create it manually
   <description>Keycloak OIDC Identity Provider for STIG Manager</description>
   <executable>cmd.exe</executable>
   <arguments>/c "%BASE%\bin\kc.bat" start --optimized</arguments>
-  <env name="JAVA_HOME" value="C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot" />
+  <env name="JAVA_HOME" value="C:\Program Files\Microsoft\jdk-17.0.21.0.2" />
   <workingdirectory>%BASE%</workingdirectory>
   <log mode="roll-by-size">
     <sizeThreshold>10240</sizeThreshold>
@@ -760,7 +791,7 @@ Get-Content 'C:\Program Files\MySQL\MySQL Server 8.4\data\*.err' -Tail 30
 JAVA_HOME environment variable is not set or the current session has not picked it up. Run:
 
 ```
-$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot'
+$env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.21.0.2'
 $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 ```
 
@@ -1768,6 +1799,139 @@ Only if the data was damaged (the server will not start, or the schemas fail int
 > **Important:** Do not try to shortcut the rollback by installing the previous MSI over the installed newer one. Windows Installer refuses — the install log shows NEWERVERSIONDETECTED and msiexec returns 1603 — and the binaries stay at the newer version. Uninstall first, then install, then re-register the service. And remember that the rollback reopens the security holes the update closed: schedule the forward update again as soon as the cause of the rollback is understood.
 
 > **Note:** The whole round trip was run on the test server on 2026-10-20 with 8.4.11 and 8.4.13: a forward upgrade (msiexec exit 0 in 10 seconds, automatic data-dictionary upgrade on first start, all services back and healthy, sign-in through the proxy working, a Watcher import posting 56 review updates), the rollback per parts (a)–(d) (uninstall 7 seconds, install 6 seconds, service re-registered, automatic data-dictionary downgrade on first start, healthy stack and working sign-in on 8.4.11), then the forward upgrade to 8.4.13 again with the same healthy results. The MySQL84 service definition after the rollback was identical to before the update: same binary path and arguments, Automatic start, LocalSystem, no recovery actions, and the Keycloak and STIG Manager dependencies resolved again on their own.
+
+### Step 16.12: Updating the JDK (Microsoft OpenJDK 17)
+
+Keycloak is the only component that runs on Java, so a JDK update touches exactly one service. The JDK lives in a version-named folder like Keycloak does (Step 16.9), so the pattern is the same: install the new version beside the old, re-point the two places that name the runtime, and keep the old folder as the rollback. No Keycloak rebuild is needed: kc.bat build bakes keycloak.conf into the optimized start image, not the JVM.
+
+> **Important:** Use the ZIP distribution, never the MSI. The MSI removes the previous JDK as part of installing the new one — on the test server an MSI update left an empty husk of the old folder — so it destroys the rollback this procedure relies on.
+
+**1. Check what you are running on, and read the release notes**
+
+The Keycloak service reads its JDK from the env line in keycloak-svc.xml — that file is the source of truth, not the machine-wide JAVA_HOME. Confirm what both say before changing anything:
+
+```
+$svc = [xml](Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Raw)
+($svc.service.env | Where-Object { $_.name -eq 'JAVA_HOME' }).value
+[System.Environment]::GetEnvironmentVariable('JAVA_HOME','Machine')
+```
+
+Read the release notes at learn.microsoft.com/en-us/java/openjdk/release-notes for the version you are moving to, and any OpenJDK vulnerability advisories it links (openjdk.org/groups/vulnerability/advisories). Security releases land on the quarterly CPU schedule, but advisories outside it appear at any time — the eMudhra root compromise handled in step 4 was published that way, days after the October 2026 CPU.
+
+**2. Download the ZIP and verify it**
+
+Take the Windows x64 zip and its SHA-256 file from the target version’s section of learn.microsoft.com/en-us/java/openjdk/download. The links are aka.ms short links that redirect to Microsoft’s download CDN, so curl.exe needs -L; without it curl writes a zero-byte file.
+
+```
+$ver = '17.0.21.0.2'
+$jdkZip = "https://aka.ms/download-jdk/microsoft-jdk-${ver}-windows-x64.zip"
+curl.exe -sL -o "C:\Installers\microsoft-jdk-${ver}-windows-x64.zip" $jdkZip
+curl.exe -sL -o "C:\Installers\microsoft-jdk-${ver}-windows-x64.zip.sha256sum.txt" "$jdkZip.sha256sum.txt"
+```
+
+Verify the archive against the published digest before doing anything with it:
+
+```
+$published = ((Get-Content "C:\Installers\microsoft-jdk-${ver}-windows-x64.zip.sha256sum.txt") -split '\s+')[0]
+$actual = (Get-FileHash "C:\Installers\microsoft-jdk-${ver}-windows-x64.zip" -Algorithm SHA256).Hash
+$published -eq $actual    # must print True
+```
+
+**3. Install the new JDK beside the old one**
+
+```
+Expand-Archive "C:\Installers\microsoft-jdk-${ver}-windows-x64.zip" -DestinationPath 'C:\Program Files\Microsoft'
+```
+
+The archive extracts to a folder whose name is the version plus the build number (for 17.0.21.0.2 that is jdk-17.0.21.0.2+1). Rename it so the path has no + in it:
+
+```
+Rename-Item "C:\Program Files\Microsoft\jdk-${ver}+1" "jdk-${ver}"
+& "C:\Program Files\Microsoft\jdk-${ver}\bin\java.exe" -version
+```
+
+This must print openjdk version "17.0.21.0.2" — the same five-part string the download page uses.
+
+**4. Remove the compromised eMudhra roots from BOTH JDKs**
+
+In October 2026 the private keys of eight eMudhra intermediate CA certificates were compromised (openjdk.org/emudhra; OpenJDK advisories 2026-10-21 and 2026-10-24, CVE-2026-114820, CVSS 9.1). A runtime that still trusts the roots those intermediates chain to can be made to trust forged certificates; for Keycloak the path that matters is outbound TLS, which in production includes the LDAPS connection to Active Directory. The 17.0.21.0.2 build does not fix this — its release notes name no fix for JDK-8395690 — so the interim action from openjdk.org/emudhra applies: delete the affected roots by hand, backing up the keystore first. Do the old JDK as well as the new one: the rollback in step 7 runs on the old JDK, and a rollback must not roll back into trusting the compromised roots.
+
+Microsoft’s keytool names truststore entries by their full DN, not by the short aliases (emsignrootcag1 and so on) used in the advisory, so list the entries first and delete what is actually there. A 17.0.21.0.2 build has one entry:
+
+```
+Copy-Item "C:\Program Files\Microsoft\jdk-${ver}\lib\security\cacerts" "C:\Program Files\Microsoft\jdk-${ver}\lib\security\cacerts.bak"
+& "C:\Program Files\Microsoft\jdk-${ver}\bin\keytool.exe" -list -cacerts -storepass changeit | Select-String emsign,emudhra
+& "C:\Program Files\Microsoft\jdk-${ver}\bin\keytool.exe" -delete -cacerts -storepass changeit -alias 'cn=emsign_root_ca_-_g1,o=emudhra_technologies_limited,ou=emsign_pki,c=in'
+```
+
+Then the same three commands against the old JDK (C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot), whose truststore has four entries to remove:
+
+- cn=emsign_root_ca_-_g1,o=emudhra_technologies_limited,ou=emsign_pki,c=in
+- cn=emsign_ecc_root_ca_-_g3,o=emudhra_technologies_limited,ou=emsign_pki,c=in
+- cn=emsign_root_ca_-_c1,o=emudhra_inc,ou=emsign_pki,c=us
+- cn=emsign_ecc_root_ca_-_c3,o=emudhra_inc,ou=emsign_pki,c=us
+
+Delete each with the same keytool -delete command, substituting the alias. changeit is the documented default password of the JDK cacerts keystore, not a site secret. A delete that reports “alias does not exist” is harmless — it means that build already dropped the root. A later JDK whose release notes name JDK-8395690 ships without these roots, and this step finds nothing to do.
+
+**5. Re-point the runtime**
+
+JAVA_HOME lives in two places and both must move: the env line in C:\Services\keycloak-26.8.1\keycloak-svc.xml (what the Keycloak service actually runs on) and the machine-wide variable (what a command-line kc.bat build picks up). Back up the service XML, then edit the env line with a plain string replacement:
+
+```
+Copy-Item C:\Services\keycloak-26.8.1\keycloak-svc.xml C:\Services\keycloak-26.8.1\keycloak-svc.xml.bak
+$xml = Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Raw
+$xml = $xml.Replace('jdk-17.0.20.101-hotspot', 'jdk-17.0.21.0.2')
+Set-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Value $xml -Encoding UTF8
+[System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-17.0.21.0.2', 'Machine')
+```
+
+**6. Restart and verify**
+
+Stop and start the services exactly as Step 16.9 steps 5 and 6 do — the Watcher and STIG Manager first (they depend on Keycloak), then Keycloak, then back up in start order:
+
+```
+Stop-Service STIGManagerWatcher; Stop-Service STIGManager; Stop-Service Keycloak
+Start-Service Keycloak
+$n = 0; do { Start-Sleep -Seconds 5; $n++; $code = curl.exe -s -o NUL -w "%{http_code}" http://localhost:8080/realms/stigman/.well-known/openid-configuration; $code } until ($code -eq '200' -or $n -ge 36)
+Start-Service STIGManager
+Start-Service STIGManagerWatcher
+```
+
+Then prove the re-point took effect — the one check that shows which JDK the service really runs on:
+
+```
+Get-CimInstance Win32_Process -Filter "name='java.exe'" | Select-Object -ExpandProperty ExecutablePath
+```
+
+It must print C:\Program Files\Microsoft\jdk-17.0.21.0.2\bin\java.exe. Then verify the rest of the stack (all three must print 200):
+
+```
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/realms/stigman/.well-known/openid-configuration
+```
+
+Log in through the browser at https://YOUR_SERVER_IP/ and open a collection — this exercises the identity path a person uses, which the curl checks do not. Finally check the Keycloak log for a clean start (the “Installed features” line near the end, and no new ERROR lines):
+
+```
+Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.out.log -Tail 15
+```
+
+**7. Rollback**
+
+If Keycloak misbehaves on the new JDK, put the old one back — both JAVA_HOME places, then the same restart as step 6:
+
+```
+$xml = Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Raw
+$xml = $xml.Replace('jdk-17.0.21.0.2', 'jdk-17.0.20.101-hotspot')
+Set-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Value $xml -Encoding UTF8
+[System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot', 'Machine')
+```
+
+Confirm the ExecutablePath check names the old folder, and investigate. The old JDK folder is otherwise untouched, so this takes about a minute once the services are stopped.
+
+> **Note:** The whole round trip was run on the test server on 2026-10-26, from 17.0.20.101 to 17.0.21.0.2 and back and forward again: download 178.6 MB verified against the published SHA-256; extract and rename into C:\Program Files\Microsoft; the eMudhra roots removed from both JDKs with cacerts backups kept beside them; Keycloak started on the new JDK with OIDC discovery answering 200 within 15 seconds of Start-Service, the whole stack healthy and sign-in through the proxy working. The rollback ran the step-7 commands and came up healthy on the old JDK — with the roots already removed from its truststore, so the rollback did not undo the security fix — and the forward direction was then re-applied with the same results. Stopping the three services took 15.6 s (Keycloak dominates); each stop-and-start cycle about 50–60 s. The zip installs no MSI entry, nothing appears in Programs and Features, and no Windows service definition changes — only Keycloak is restarted. Set-Content -Encoding UTF8 rewrites the service XML with a BOM, which the WinSW wrapper reads without complaint — verified by the restarts in both directions.
 
 ## 17. Customize the Home Page (Optional)
 
