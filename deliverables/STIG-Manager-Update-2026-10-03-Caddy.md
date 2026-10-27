@@ -1,179 +1,166 @@
 # Update: Caddy 2.11.6 to 2.11.7
 
-Tested on the twin WIN-TJ87SDPMUPH on 2026-10-03.
+Tested on a test server on 2026-10-03. The rollback was not run.
 
-## What an administrator should do
+## Summary
 
-Apply it: follow guide Step 16.10 as written. Caddy 2.11.7 is a patch that fixes
-regressions 2.11.6 introduced in the new default idle timeouts — a crash and
-dropped streams under load — and upstream explicitly recommends it for anyone on
-2.11.6. The step was run end to end on the twin today; every command worked as
-written, and the two new-default behaviors (16 KiB header cap, 60-second stalled
-body abort) behave identically after the swap.
+Apply this update. Caddy 2.11.7 fixes problems that 2.11.6 introduced with its
+new default idle timeouts: a possible crash and connections cut off while still
+in use. The Caddy project recommends it for everyone on 2.11.6.
+
+The web interface is unavailable for a few seconds while Caddy restarts. No
+configuration changes are required.
 
 ## What changes
 
-2.11.7 fixes the 2.11.6 idle-timeout regressions, all in the proxy path this
-deployment uses daily:
+2.11.7 fixes three problems with the idle timeouts introduced in 2.11.6, all in
+the reverse proxy that serves this deployment:
 
-- A streaming response to a request that had a body was cut off exactly 60
-  seconds after the body was read, even while the stream was making progress
-  (upstream #8103). Reproduced on the twin's 2.11.6 and gone on 2.11.7 — this is
-  the reason to upgrade.
-- Over HTTP/2, Caddy could crash with a nil pointer while the reverse proxy was
-  still reading a request body after the handler returned (#8101), and quiet
-  HTTP/2 streams could be reset after 60 seconds of write idle (#8118). Tested
-  on the twin over HTTP/2 — TLS 1.3 with ALPN h2 negotiated, the same way a
-  browser uses this proxy (the live service was checked too: it answers h2):
-  the quiet-stream reset reproduces on 2.11.6 and is gone on 2.11.7; the crash
-  did not reproduce on either version in any shape the twin can drive
-  (details below). A browser talks HTTP/2 to this proxy, so these two fixes
-  are the ones that matter most to people using the web UI in production.
+- A streaming response to a request that had a body was cut off 60 seconds
+  after the body was read, even while data was still flowing (Caddy issue
+  #8103). This was reproduced on 2.11.6 on the test server and did not occur on
+  2.11.7.
+- Over HTTP/2, a stream with no traffic for 60 seconds could be reset (#8118).
+  This was reproduced on 2.11.6 and did not occur on 2.11.7.
+- Over HTTP/2, Caddy could crash while the proxy was still reading a request
+  body (#8101). This could not be reproduced on either version. Browsers use
+  HTTP/2 with this proxy, so these two HTTP/2 fixes matter most to people using
+  the web interface.
 
-Also: placeholders for missing cookies/TLS fields are empty again (the live
-Caddyfile uses neither); support for the new `Incremental` header (RFC 10036) is
-opt-in by the upstream and nothing on this stack sends it; faster TLS handshakes;
-Unix-socket cleanup on reload (Windows: not in use); Set-Cookie splitting fix
-(JSON config only: not in use); `caddy fmt` brace fix. None of these change this
-deployment's behavior beyond the idle-timeout fixes.
+The 16 KiB request header limit and the 60-second limit on stalled transfers
+introduced in 2.11.6 are unchanged.
 
-The 16 KiB request-header cap and the 60-second stalled-body abort introduced in
-2.11.6 are unchanged in 2.11.7 (verified below).
+Other changes have no effect on this deployment: empty placeholders for missing
+cookies and TLS fields (the Caddyfile uses neither), optional support for the new
+`Incremental` header (nothing in this stack sends it), faster TLS handshakes,
+Unix socket cleanup on reload, a Set-Cookie fix for JSON configurations, and a
+`caddy fmt` fix.
 
-## What might break, and what the twin showed
+## Test results
 
-| Concern | Tested on the twin? | Result |
-|---|---|---|
-| Streaming responses to requests with a body cut at 60 s (#8103) | Yes — isolated Caddy instance + local sink; a POST with a 1 KiB body answered by a response ticking every 10 s for 100 s | On 2.11.6: cut at 60.3 s, 5 of 10 ticks received, curl exit 18. On 2.11.7: all 10 ticks, 100.3 s, curl exit 0. Fixed. HTTP/1.1 only — the same test over HTTP/2 completed on both versions (10 of 10 ticks, 100 s), matching upstream's finding. |
-| Quiet HTTP/2 stream reset (#8118) | Yes — over HTTP/2 (TLS + ALPN h2 negotiated, like a browser): a GET answered by one chunk, a 70 s pause, a second chunk; the pause is longer than the 60 s default `write_idle` | On 2.11.6 the stream was reset with an h2 INTERNAL_ERROR stream error at +60.1 s, 1 of 2 chunks received. On 2.11.7: both chunks, clean end at +70.0 s. Fixed. |
-| The intended 60-second stalled-body abort disappears | Yes — same rig; a POST that sends half of a 1 KiB body then stalls | 2.11.6: HTTP 499 at 60.0 s. 2.11.7: HTTP 499 at 60.0 s. Identical — the regression fix did not remove the timeout. |
-| The intended stalled-write abort disappears over HTTP/2 | Yes — over HTTP/2: a GET of 1 MiB while the client reads nothing, so the proxy's write blocks on the h2 flow-control window | Stream reset at +60.0 s on both versions. The intended abort is retained over h2. |
-| HTTP/2 crash while the proxy still reads a request body (#8101) | Attempted, over HTTP/2, in eight shapes: stalled, slowly dripped and fully blasted request bodies, with the upstream answering early over HTTP/1.1 (the production shape) and over HTTP/2 (the reporter's stack), consuming the body slowly or fast, or closing; plus repeated storms totalling over 65 concurrent uploads against an early-responding upstream | No crash on either version. The panic needs a request-body read to start in the instant after the handler returns and the h2 response-writer state is released; in every shape the twin can drive, the transport aborts the body write about 3 ms after the handler returns, before a new read can start. Two wild crash reports (upstream #8101) show the race is real; it was not reproducible here. |
-| 16 KiB header cap changes | Yes — /branding/ on the live service (served by Caddy itself, so STIG Manager's own 16 KiB backend cap cannot mask the result), measured before and after | 10 KiB header → 200, 20 KiB → 431 on both versions. Unchanged. |
-| Live Caddyfile rejected by the new binary | Yes — `validate` with the 2.11.7 binary before the swap | "Valid configuration", exit 0, one known cosmetic fmt warning (same as on 2.11.6). |
-| Login / token through the proxy breaks | Yes — a service-account sign-in through the proxy after the swap (not a browser login) | Token issued through the proxy (1,198 bytes), authenticated API call 200. |
-| Watcher imports break | Yes — MS_Edge scan result placed in the watched folder after the swap | Parsed, asset + STIG data received, 56 reviews posted, 0 rejected, recorded in watcher-history.txt. (The Watcher talks to localhost:54000 directly and does not traverse Caddy, so this is a stack check, not a Caddy check.) |
+| Risk | Result on the test server |
+|---|---|
+| Streaming responses are still cut off at 60 seconds (#8103) | Fixed. Over HTTP/1.1, a 100-second streaming response was cut off at 60 seconds on 2.11.6 and completed on 2.11.7. Over HTTP/2 it completed on both versions. |
+| Quiet HTTP/2 streams are still reset (#8118) | Fixed. On 2.11.6 a stream that paused for 70 seconds was reset after 60 seconds. On 2.11.7 it completed. |
+| The 60-second limit on stalled transfers no longer works | It still works. A stalled upload over HTTP/1.1 and a stalled download over HTTP/2 were both stopped after 60 seconds, on both versions. |
+| The HTTP/2 crash (#8101) | Not reproduced on either version, in eight different test patterns and with more than 65 concurrent uploads. |
+| The 16 KiB header limit changes | No change. A 10 KiB header was accepted and a 20 KiB header was rejected (431) on both versions. |
+| The new version rejects the Caddyfile | No. `caddy validate` reported a valid configuration, with the same formatting warning as 2.11.6. |
+| Sign-in through the proxy breaks | No. A service account received a token through the proxy and made an authenticated API call. |
+| Watcher imports break | No. A scan result placed in the watched folder was imported: 56 reviews posted, none rejected. The Watcher connects to STIG Manager directly, not through Caddy, so this checks the stack rather than Caddy. |
 
 ## Before you start
 
-- Download `caddy_2.11.7_windows_amd64.zip` from
-  https://github.com/caddyserver/caddy/releases/tag/v2.11.7 and check its SHA-256
-  against the digest GitHub shows beside the asset:
-  `(Get-FileHash C:\Installers\caddy_2.11.7_windows_amd64.zip -Algorithm SHA256).Hash`
-  must equal the `sha256:` digest on the release page. (Caddy's own
-  `caddy_2.11.7_checksums.txt` lists SHA-512 digests, not SHA-256 — do not look
-  for the SHA-256 there.)
-- Check the stack is healthy first:
-  `Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher` shows
-  all Running, and
-  `curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration`
-  prints `200`.
-- This record was tested from 2.11.6. If your server is still on 2.11.4, go
-  straight to 2.11.7 with the same steps (name the old binary
-  `caddy-2.11.4.exe.bak`), and read the 2026-10-02 Caddy record as well: the
-  header cap and idle timeout it describes arrive with this update. A direct
-  2.11.4 to 2.11.7 update was not run on the twin.
-- No backup step: Caddy has no database; the old binary kept beside the new one
-  is the rollback.
+- **The download.** Step 1 downloads `caddy_2.11.7_windows_amd64.zip` from the
+  release page (https://github.com/caddyserver/caddy/releases/tag/v2.11.7). You
+  will compare its SHA-256 hash with the `sha256:` digest that GitHub shows
+  beside the file. Caddy's own `caddy_2.11.7_checksums.txt` lists SHA-512
+  digests, not SHA-256.
+- **A healthy starting point.** Confirm that the stack is healthy:
+
+  ```powershell
+  Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
+  curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
+  ```
+
+  Expected result: all five services are Running, and the second command prints
+  `200`.
+- **If your server is still on 2.11.4.** Update directly to 2.11.7 with the same
+  steps, naming the old file `caddy-2.11.4.exe.bak` in step 3. Also read the
+  update record for Caddy 2.11.6 (2026-10-02): the header limit and idle timeouts
+  it describes arrive with this update. A direct update from 2.11.4 to 2.11.7 was
+  not tested.
+- **Backups.** No backup is needed. Caddy has no database, and the old program
+  file kept beside the new one is the rollback.
+- **One PowerShell window.** Run every command in one elevated PowerShell
+  window, in order. Later steps use the `$ver` variable that step 1 sets.
 
 ## Procedure
 
-Guide Step 16.10, as run on the twin, one command at a time.
+### 1. Download, verify and extract
 
-1. Download and verify (Step 1):
-
-   ```
-   $ver = '2.11.7'
-   $url = "https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_${ver}_windows_amd64.zip"
-   Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_${ver}_windows_amd64.zip"
-   (Get-FileHash "C:\Installers\caddy_${ver}_windows_amd64.zip" -Algorithm SHA256).Hash
-   Expand-Archive "C:\Installers\caddy_${ver}_windows_amd64.zip" -DestinationPath C:\Installers\caddy-$ver -Force
-   ```
-
-   Correct result: the hash equals the SHA-256 digest beside the asset on the
-   release page; the zip extracts caddy.exe flat into C:\Installers\caddy-2.11.7
-   (no nested folder on the twin).
-
-2. Validate the live Caddyfile with the new binary (Step 2):
-
-   ```
-   & "C:\Installers\caddy-$ver\caddy.exe" validate --config C:\Services\caddy\Caddyfile
-   ```
-
-   Correct result: "Valid configuration" and exit code 0. (A cosmetic warning
-   about Caddyfile formatting, pointing at line 32, is expected on this
-   deployment and does not stop the service.)
-
-3. Swap the binary and start (Step 3):
-
-   ```
-   Stop-Service Caddy
-   Rename-Item C:\Services\caddy\caddy.exe caddy-2.11.6.exe.bak
-   Copy-Item "C:\Installers\caddy-$ver\caddy.exe" C:\Services\caddy\caddy.exe -Force
-   Start-Service Caddy
-   C:\Services\caddy\caddy.exe version
-   Get-Service Caddy | Select-Object Name, Status
-   curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
-   ```
-
-   Correct result: `v2.11.7 …`, Caddy Running, and `200` from the proxy check.
-
-## Check that it worked
-
-- `Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher` — all
-  Running.
-- `curl.exe -sk -o NUL -w "%{http_code}" https://localhost/` and the same for
-  `https://localhost/realms/stigman/.well-known/openid-configuration` — both
-  print `200`.
-- Log in through a browser at https://YOUR_SERVER_IP/ and open a collection
-  (guide Step 16.10, part 4). The twin has no browser: there, a service account
-  was issued a token through the proxy and made one authenticated API call,
-  which exercises the same route but is not a person's login.
-- If the Watcher is installed: place a scan result in the watched folder; it
-  must appear in watcher-history.txt on the next 5-minute cycle.
-- Once verified, delete the old `.bak` binaries; until then they are the undo.
-
-All of the above except the browser login ran on the twin after the swap and
-passed.
-
-## Undo
-
-Not run on the twin (the new version passed every check):
-
+```powershell
+$ver = '2.11.7'
+$url = "https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_${ver}_windows_amd64.zip"
+Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_${ver}_windows_amd64.zip"
+(Get-FileHash "C:\Installers\caddy_${ver}_windows_amd64.zip" -Algorithm SHA256).Hash
+Expand-Archive "C:\Installers\caddy_${ver}_windows_amd64.zip" -DestinationPath C:\Installers\caddy-$ver -Force
 ```
+
+Expected result: the hash equals the SHA-256 digest beside the file on the
+release page, and `caddy.exe` is extracted directly into
+`C:\Installers\caddy-2.11.7`.
+
+### 2. Check the Caddyfile with the new version
+
+```powershell
+& "C:\Installers\caddy-$ver\caddy.exe" validate --config C:\Services\caddy\Caddyfile
+```
+
+Expected result: `Valid configuration` and exit code 0. A warning about the
+Caddyfile's formatting is expected and does not affect the service. If the
+command reports an error, fix the Caddyfile before you continue; starting
+Caddy with a configuration it rejects leaves the site down.
+
+### 3. Replace the program file and start Caddy
+
+```powershell
+Stop-Service Caddy
+Rename-Item C:\Services\caddy\caddy.exe caddy-2.11.6.exe.bak
+Copy-Item "C:\Installers\caddy-$ver\caddy.exe" C:\Services\caddy\caddy.exe -Force
+Start-Service Caddy
+C:\Services\caddy\caddy.exe version
+Get-Service Caddy | Select-Object Name, Status
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
+```
+
+Expected result: the version begins `v2.11.7`, Caddy is Running, and the last
+command prints `200`.
+
+## Verify the update
+
+```powershell
+Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/realms/stigman/.well-known/openid-configuration
+```
+
+Expected result: all five services are Running, and both `curl.exe` commands
+print `200`.
+
+Then sign in at https://YOUR_SERVER_IP/ in a browser and open a collection. If
+the Watcher is installed, confirm that it still imports: when the next scan
+result arrives in its watched folder (by default
+`C:\Services\stigman-watcher\watched`), the file name should appear in
+`C:\Services\stigman-watcher\watcher-history.txt` after the Watcher's next scan.
+
+When you are satisfied, delete the old `.bak` files in `C:\Services\caddy`.
+Until then, they are the rollback.
+
+## Roll back
+
+This rollback was not run on the test server, because the new version passed
+every check.
+
+```powershell
 Stop-Service Caddy
 Rename-Item C:\Services\caddy\caddy.exe caddy-2.11.7.exe.bak
 Rename-Item C:\Services\caddy\caddy-2.11.6.exe.bak caddy.exe
 Start-Service Caddy
 C:\Services\caddy\caddy.exe version
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/api/op/configuration
 ```
 
-Correct result: `v2.11.6 …`, Caddy Running, 200 from
-`https://localhost/api/op/configuration`.
+Expected result: the version begins `v2.11.6`, Caddy is Running, and the last
+command prints `200`.
 
 ## Not verified
 
-- A literal browser click-through of login (the twin has no GUI); the same
-  request path was verified programmatically through the proxy, over HTTP/1.1
-  and over HTTP/2.
-- The HTTP/2 crash (#8101) — not reproduced on either version on the twin, over
-  HTTP/2, in eight shapes plus over 65 concurrent uploads (see the table). The quiet-
-  stream reset (#8118) was reproduced over HTTP/2 and is confirmed fixed. The
-  crash claim stands on the two upstream reports; a browser does use HTTP/2
-  through this proxy, and 2.11.7 contains the fix either way.
-- A direct update from 2.11.4 to 2.11.7 (the twin was already on 2.11.6).
-- Behavior of a Watcher pointed at the public HTTPS address — this deployment's
-  Watcher points at localhost:54000, so its imports never traverse Caddy.
-
-## Guide corrections found while testing
-
-- Step 16.10 Step 2's validate command, as previously written
-  (`C:\Installers\caddy-$ver\caddy.exe validate …`), fails when typed as shown:
-  in command position PowerShell does not expand `$ver`, so the admin gets
-  "term not recognized". Fixed in build-install-guide.js to
-  `& "C:\Installers\caddy-$ver\caddy.exe" validate …`; both guides rebuilt.
-- The prerequisites list and the version table named the bare
-  `caddy_windows_amd64.exe` asset and version 2.11.6. The 2.11.7 release (like
-  2.11.6's) ships Windows builds only as `caddy_2.11.7_windows_amd64.zip`, and
-  upstream recommends against staying on 2.11.6. Both now name the zip and
-  2.11.7; Install-Caddy.ps1 already extracts caddy.exe from the zip form.
+- **Signing in with a browser.** The test server has no browser. The same
+  request path was tested through the proxy with a service account, over
+  HTTP/1.1 and HTTP/2. Sign in with a browser after you apply the update.
+- **The HTTP/2 crash (#8101).** It could not be reproduced on either version.
+  The fix rests on the Caddy project's reports; 2.11.7 contains it either way.
+- **A direct update from 2.11.4 to 2.11.7.** The test server was already on
+  2.11.6.
+- **The rollback.** It was not run.

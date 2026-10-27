@@ -1122,7 +1122,7 @@ const doc = new Document({
       p("Confirm your current running version:"),
       code("(Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition').info.version"),
       blank(),
-      p("If the release notes mention a platform requirement, confirm the MySQL version as well. It must be at or above the stated minimum (the lab prints 8.4.13):"),
+      p("If the release notes mention a platform requirement, confirm the MySQL version as well. It must be at or above the stated minimum (the test server prints 8.4.13):"),
       code("$env:MYSQL_PWD = '<mysql-root-password>'"),
       code("& 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysql.exe' -u root -N -e \"SELECT VERSION();\""),
       code("$env:MYSQL_PWD = $null"),
@@ -1345,7 +1345,7 @@ const doc = new Document({
       code("& 'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqldump.exe' -u root --databases keycloak --routines --triggers --single-transaction --result-file=\"C:\\Backups\\keycloak-db-$stamp.sql\""),
       code("$env:MYSQL_PWD = $null"),
       code("Get-Item C:\\Backups\\*-*.sql | Sort-Object LastWriteTime | Select-Object Name, Length"),
-      p("mysql and mysqldump print nothing on success. The proof is the exit code and the two files that appear in the listing, each a few megabytes or more, ending in a “-- Dump completed on” line (check with Get-Content <file> -Tail 1)."),
+      p("mysql and mysqldump print nothing on success. The proof is the exit code and the two files that appear in the listing (on the test server, about 7 MB for stigman and 330 KB for keycloak), each ending in a “-- Dump completed on” line (check with Get-Content <file> -Tail 1)."),
       blank(),
 
       pBold("3. Download the installer and verify its signature"),

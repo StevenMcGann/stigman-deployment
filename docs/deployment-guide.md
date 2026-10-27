@@ -1303,7 +1303,7 @@ Confirm your current running version:
 (Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition').info.version
 ```
 
-If the release notes mention a platform requirement, confirm the MySQL version as well. It must be at or above the stated minimum (the lab prints 8.4.13):
+If the release notes mention a platform requirement, confirm the MySQL version as well. It must be at or above the stated minimum (the test server prints 8.4.13):
 
 ```
 $env:MYSQL_PWD = '<mysql-root-password>'
@@ -1654,7 +1654,7 @@ $env:MYSQL_PWD = $null
 Get-Item C:\Backups\*-*.sql | Sort-Object LastWriteTime | Select-Object Name, Length
 ```
 
-mysql and mysqldump print nothing on success. The proof is the exit code and the two files that appear in the listing, each a few megabytes or more, ending in a “-- Dump completed on” line (check with Get-Content \<file> -Tail 1).
+mysql and mysqldump print nothing on success. The proof is the exit code and the two files that appear in the listing (on the test server, about 7 MB for stigman and 330 KB for keycloak), each ending in a “-- Dump completed on” line (check with Get-Content \<file> -Tail 1).
 
 **3. Download the installer and verify its signature**
 
