@@ -104,9 +104,10 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
-      "redirectUris": ["*"],
-      "webOrigins": ["*"],
+      "directAccessGrantsEnabled": false,
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "redirectUris": ["https://__STIGMAN_ADDRESS__/*"],
+      "webOrigins": ["+"],
       "protocol": "openid-connect",
       "defaultClientScopes": [
         "openid",

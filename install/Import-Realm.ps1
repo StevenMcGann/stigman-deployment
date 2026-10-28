@@ -60,6 +60,19 @@ try {
 # ---- Import ----
 Write-Step "Importing realm from $RealmJsonPath"
 $realmJson = Get-Content $RealmJsonPath -Raw
+# Resolve the browser address before importing a new realm.
+# BEGIN STIGMAN ADDRESS VALIDATION
+$address = ([string]$ServerIp).Trim()
+if ([string]::IsNullOrWhiteSpace($address)) { Fail 'ServerIp is empty. Set the browser host name or IP address in stigman-config.ps1.' }
+$addressUri = $null
+if ($address -match '[/\\\s"<>]' -or -not [uri]::TryCreate(('https://' + $address), [UriKind]::Absolute, [ref]$addressUri) -or $addressUri.UserInfo -or $addressUri.AbsolutePath -ne '/' -or $addressUri.Query -or $addressUri.Fragment) {
+    Fail 'ServerIp must be a host name or IP address, optionally with a port, without a scheme or path.'
+}
+$realmJson = $realmJson.Replace('__STIGMAN_ADDRESS__', $address)
+if ($realmJson.Contains('__STIGMAN_ADDRESS__')) { Fail 'The realm address placeholder was not resolved.' }
+try { $null = $realmJson | ConvertFrom-Json -ErrorAction Stop }
+catch { Fail 'The resolved realm file is not valid JSON.' }
+# END STIGMAN ADDRESS VALIDATION
 try {
     Invoke-RestMethod -Uri "$kcBase/admin/realms" -Method Post -Headers $headers `
         -Body $realmJson -ContentType 'application/json' -ErrorAction Stop | Out-Null
