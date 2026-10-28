@@ -265,9 +265,9 @@ rollback takes about a minute once the services are stopped.
 
 ## Not verified
 
-- **Signing in with a browser.** The test server has no browser. A service
-  account's sign-in through the proxy was tested instead. Sign in with a browser
-  after you apply the update.
+- **Signing in with a browser.** This was not tested. A service account's
+  sign-in through the proxy was tested instead. Sign in with a browser after you
+  apply the update.
 - **LDAPS to Active Directory.** The test server has no LDAPS connection, so
   LDAPS was not tested with the cleaned trust store. The removed certificates
   are all eMudhra roots. If your domain controllers' certificates do not chain

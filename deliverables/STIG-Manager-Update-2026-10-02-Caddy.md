@@ -180,10 +180,10 @@ configuration to restore; only the program file changed.
 
 ## Not verified
 
-- **Signing in with a browser.** The test server has no browser. Instead, the
-  web interface and OIDC discovery answered 200 through the proxy, a service
-  account received a token, and an authenticated API call with that token
-  succeeded. Sign in with a browser after you apply the update.
+- **Signing in with a browser.** This was not tested. Instead, the web
+  interface and OIDC discovery answered 200 through the proxy, a service account
+  received a token, and an authenticated API call with that token succeeded.
+  Sign in with a browser after you apply the update.
 - **A backend that stops partway through a response.** The 60-second limit also
   applies when the server side stops sending. That case uses the same mechanism
   and default as the tested request case, but was not tested directly.

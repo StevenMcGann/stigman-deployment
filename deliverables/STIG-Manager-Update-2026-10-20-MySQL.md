@@ -313,9 +313,9 @@ the other services as in step 7.
 
 ## Not verified
 
-- **Signing in with a browser.** The test server has no browser. A service
-  account's sign-in through the proxy was tested instead. Sign in with a browser
-  after you apply the update.
+- **Signing in with a browser.** This was not tested. A service account's
+  sign-in through the proxy was tested instead. Sign in with a browser after you
+  apply the update.
 - **Restoring the backups after a rollback.** The restore commands were tested
   on 2026-10-16, but the rollback on 2026-10-20 did not need them. This record
   does not cover a server that will not start at all.

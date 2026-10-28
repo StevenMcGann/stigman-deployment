@@ -156,9 +156,9 @@ command prints `200`.
 
 ## Not verified
 
-- **Signing in with a browser.** The test server has no browser. The same
-  request path was tested through the proxy with a service account, over
-  HTTP/1.1 and HTTP/2. Sign in with a browser after you apply the update.
+- **Signing in with a browser.** This was not tested. The same request path
+  was tested through the proxy with a service account, over HTTP/1.1 and
+  HTTP/2. Sign in with a browser after you apply the update.
 - **The HTTP/2 crash (#8101).** It could not be reproduced on either version.
   The fix rests on the Caddy project's reports; 2.11.7 contains it either way.
 - **A direct update from 2.11.4 to 2.11.7.** The test server was already on

@@ -244,9 +244,9 @@ restore the step 1 backup as part of its rollback.
 
 ## Not verified
 
-- **Signing in with a browser.** The test server has no browser. A service
-  account's sign-in and the realm's discovery endpoints were tested instead.
-  Sign in with a browser after you apply the update.
+- **Signing in with a browser.** This was not tested. A service account's
+  sign-in and the realm's discovery endpoints were tested instead. Sign in with
+  a browser after you apply the update.
 - **Admin Console actions**, including the sign-out fix (#52927). These need an
   interactive administrator sign-in.
 - **Checklist export.** Exporting CKL and CKLB files from the web interface
