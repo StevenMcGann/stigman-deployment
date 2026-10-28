@@ -441,6 +441,21 @@ $headers = @{ Authorization = 'Bearer ' + $token.access_token; 'Content-Type' = 
 
 ```
 $realmJson = Get-Content C:\Installers\stigman-realm.json -Raw
+```
+
+Set the server address below to the host name or IP address that users enter in their browsers, without https:// or a path. Keycloak must return users only to this server. If users use more than one address, add each additional HTTPS callback under Clients, stig-manager, Valid redirect URIs after import. Use exact callback paths where known; retain a path wildcard only for required application entry paths.
+
+```
+$serverAddress = '<server-address>'
+if ([string]::IsNullOrWhiteSpace($serverAddress) -or $serverAddress -eq '<server-address>') { throw 'Set serverAddress before importing the realm.' }
+$realmJson = $realmJson.Replace('__STIGMAN_ADDRESS__', $serverAddress)
+if ($realmJson.Contains('__STIGMAN_ADDRESS__')) { throw 'The realm address placeholder was not resolved.' }
+$null = $realmJson | ConvertFrom-Json -ErrorAction Stop
+```
+
+> **Note:** The web client uses authorization code flow with S256 proof key for code exchange. Its redirect list is restricted to the configured server address, web origins follow that list, and direct access grants are disabled. The separate Watcher service account continues to use client credentials. Existing realms are not changed by the import script; use the dated Keycloak client change record for existing installations.
+
+```
 Invoke-WebRequest -Uri 'http://localhost:8080/admin/realms' -Method Post -Headers $headers -Body $realmJson -UseBasicParsing
 ```
 
@@ -1097,6 +1112,8 @@ Run the included script from an elevated command prompt:
 ```
 configure-hostname.cmd stigman.yourdomain.mil
 ```
+
+Before changing the hostname, open Clients, stig-manager, Settings in the Keycloak admin console and add the new approved HTTPS callback to Valid redirect URIs, using an exact path where possible or https://\<server-address>/\* for required entry paths. Keep Web origins as +. The hostname script does not update this client list. After cutover, verify a fresh browser sign-in and sign-out at the new address, then remove any old callback that is no longer used.
 
 The script updates all three files, rebuilds Keycloak (required when hostname changes), and restarts all services.
 
