@@ -85,6 +85,8 @@ Each tested update comes with a dated procedure in `deliverables/`, named `STIG-
 - Each document states the versions it starts from. If your server is older than that, apply the earlier dated documents first, oldest to newest.
 - The general steps for updating any one component are in Section 16 of the Deployment Guide.
 
+The [Keycloak web-client hardening procedure tested on 2026-10-28](deliverables/STIG-Manager-Update-2026-10-28-Keycloak-Client.md) includes sign-in, sign-out, grant and origin checks, plus the verified rollback and reapplication. The installation guide and realm template include these defaults for new installations.
+
 ### Service Configurations (`deliverables/service-configs/`)
 
 Ready-to-use configuration files:
@@ -99,7 +101,7 @@ Ready-to-use configuration files:
 
 A ready-made realm to import, with:
 - The OIDC client scopes STIG Manager needs
-- The `stig-manager` public client with its protocol mappers
+- The `stig-manager` public client with its protocol mappers, approved-server callbacks, required S256 PKCE and direct password grants disabled
 - The `stigman-watcher` confidential client for automatic imports
 - Test user accounts with their roles
 
@@ -121,7 +123,7 @@ The configs and realm import use **sample credentials** (for example `STIGman_DB
 
 - Change all database, Keycloak admin and test account passwords (Section 14)
 - Replace the `stigman-watcher` client secret in Keycloak
-- Restrict the `stig-manager` client's redirect URIs and web origins (the realm import allows `*` for initial setup)
+- Confirm every approved HTTPS callback on the `stig-manager` client. New imports resolve the server-address placeholder, derive web origins from that list with `+`, require S256 PKCE and disable direct password grants. For an existing realm, follow the [tested client-hardening procedure](deliverables/STIG-Manager-Update-2026-10-28-Keycloak-Client.md) after checking addresses and script dependencies
 - Replace the self-signed certificate with a CA-issued one (Section 12)
 
 ## Architecture
