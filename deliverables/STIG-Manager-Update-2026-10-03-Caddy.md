@@ -161,8 +161,17 @@ command prints `200`.
   over HTTP/1.1 and HTTP/2. The browser path was checked on the test server on
   2026-10-28, with this version in place: a browser loaded the Keycloak
   sign-in page over HTTP/2, the test account was accepted, and the STIG Manager
-  web interface loaded with no errors. That check was made on the test server,
-  not on yours: sign in with a browser after you apply the update.
+  web interface loaded with no errors. The check was made at the address the
+  deployment approves for sign-in callbacks, which is the address the
+  verification steps above ask you to use. It was repeated on 2026-10-30,
+  after the web client’s callback list had been restricted to that address:
+  the sign-in page loaded with HTTP 200 over HTTP/2 and the web interface
+  loaded with no errors. A sign-in at an address that is not on the client’s
+  list is refused by Keycloak, which is the expected behaviour of the
+  configuration change recorded in the Keycloak client change record of
+  2026-10-28; the deployment guide’s troubleshooting section describes the
+  page an administrator sees in that case. These checks were made on the test
+  server, not on yours: sign in with a browser after you apply the update.
 - **The HTTP/2 crash (#8101).** It could not be reproduced on either version.
   The fix rests on the Caddy project's reports; 2.11.7 contains it either way.
 - **A direct update from 2.11.4 to 2.11.7.** The test server was already on

@@ -48,6 +48,7 @@
   - [Keycloak fails to start as a service](#keycloak-fails-to-start-as-a-service)
   - [STIG Manager shows ‘Missing username claim’](#stig-manager-shows-missing-username-claim)
   - [Browser shows ‘Invalid scopes’ error](#browser-shows-invalid-scopes-error)
+  - [Browser shows “We are sorry... Invalid parameter: redirect_uri”](#browser-shows-we-are-sorry-invalid-parameter-redirect_uri)
   - [Keycloak redirects to HTTPS but page doesn’t load](#keycloak-redirects-to-https-but-page-doesnt-load)
   - [ERR_SSL_PROTOCOL_ERROR from network clients](#err_ssl_protocol_error-from-network-clients)
   - [STIG Manager hangs at “Authorizing” (ServiceWorker SecurityError, code 18)](#stig-manager-hangs-at-authorizing-serviceworker-securityerror-code-18)
@@ -839,6 +840,22 @@ The Keycloak realm is missing required client scopes. Verify that the following 
 - stig-manager:collection
 - stig-manager:user, stig-manager:user:read
 - stig-manager:op
+
+### Browser shows “We are sorry... Invalid parameter: redirect_uri”
+
+The site was opened at an address that is not on the stig-manager client’s list of approved callback addresses. Keycloak refuses the sign-in request with HTTP 400 and shows this error page instead of the sign-in form. This is the expected result of the client configuration described in the Keycloak client change record, not a fault in Caddy or in STIG Manager.
+
+Sign in at the server address the deployment approves, for example https://YOUR_SERVER_IP/. The address in the browser must match an entry in the client’s Valid redirect URIs, including the scheme and any port. If people must use another address, such as a DNS name or a second address, add it in the Keycloak admin console under Clients, stig-manager, Settings. Keep the scheme and host exact, and use a path wildcard only for the entry paths the application needs.
+
+To test an address against the list, run the following and read the status code. A sign-in form is returned with 200 when the address is approved, and 400 with the same error text when it is not.
+
+```
+$address = 'https://YOUR_SERVER_IP/'
+$url = 'https://YOUR_SERVER_IP/realms/stigman/protocol/openid-connect/auth?client_id=stig-manager&response_type=code&scope=openid&code_challenge_method=S256&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&redirect_uri=' + [uri]::EscapeDataString($address)
+curl.exe -sk -o NUL -w "%{http_code}" $url
+```
+
+Replace YOUR_SERVER_IP with the address being tested, in both lines, and repeat the test for each address people use. Remove the -k switch once the site’s certificate is trusted by the machine running the command.
 
 ### Keycloak redirects to HTTPS but page doesn’t load
 

@@ -79,6 +79,12 @@ recommends authorization code flow with PKCE for the web application.
 - Record the original redirect URIs, web origins, direct-access-grant flag,
   Require PKCE state, PKCE Method and post-logout redirect URIs. Record whether
   the PKCE attribute was absent, rather than only writing down a blank value.
+- Know the page an administrator sees when a callback address is refused. A
+  person who opens the site at an address that is not on the list sees
+  Keycloak’s error page “We are sorry... Invalid parameter: redirect_uri”
+  with HTTP 400, not the sign-in form. That is the expected refusal. Sign in
+  at an approved address, or add the address to the list before asking the
+  person to try again.
 - Use a window that avoids automated maintenance or another administrator
   editing the client. Keep a separate administrative session available for
   immediate rollback if browser access fails.
