@@ -855,7 +855,7 @@ $url = 'https://YOUR_SERVER_IP/realms/stigman/protocol/openid-connect/auth?clien
 curl.exe -sk -o NUL -w "%{http_code}" $url
 ```
 
-In the first line, put the address being tested. In the second line, replace YOUR_SERVER_IP with the server address, because the request goes to Keycloak there whichever address is being tested. Repeat the first and third lines for each address people use. Remove the -k switch once the site’s certificate is trusted by the machine running the command.
+In the first line, put the address being tested. In the second line, replace YOUR_SERVER_IP with the server address, because the request goes to Keycloak there whichever address is being tested. To test another address, change the first line and run all three lines again; the second line builds the request from the address in the first, so running the third line alone repeats the previous test. Remove the -k switch once the site’s certificate is trusted by the machine running the command.
 
 ### Keycloak redirects to HTTPS but page doesn’t load
 
