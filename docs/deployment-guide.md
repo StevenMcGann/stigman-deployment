@@ -1361,11 +1361,19 @@ Write-Host "Backup written to $dump"
 
 ### Step 16.3: Download and Stage the New Binary
 
-Download the Windows release ZIP for the target version (replace VERSION with the version number, e.g., 1.6.17):
+First check that the release page publishes the Windows archive. A release can be announced before its files are attached: the Assets section of the release page then lists only “Source code (zip)” and “Source code (tar.gz)”, and the download address below returns 404. This command asks for the archive itself and prints the HTTP status:
 
 ```
 $ver = '1.6.17'
 $url = "https://github.com/NUWCDIVNPT/stig-manager/releases/download/$ver/stig-manager-win-$ver.zip"
+curl.exe -sIL -o NUL -w "%{http_code}`n" $url
+```
+
+> **Note:** Expected result: 200. If it prints 404, the release does not publish the Windows archive yet. Wait and run the command again later; do not install a different file and do not build the application yourself. This was the state of STIG Manager 1.6.18 on 2026-11-03, the day after its release was published: the release page listed no files at all, so the update could not be installed from it.
+
+When the check prints 200, download the Windows release ZIP for the target version (replace VERSION with the version number, e.g., 1.6.17):
+
+```
 Invoke-WebRequest -Uri $url -OutFile "C:\Installers\stig-manager-win-$ver.zip"
 ```
 
@@ -1416,12 +1424,16 @@ Get-Content C:\Services\stig-manager\stig-manager-svc.out.log -Tail 40 -Wait
 In the log, confirm these signals in order (press Ctrl+C to stop following). When a migration is included, you will see:
 
 ```
-"type":"migration" ... "message":"MySQL schema requires N update"
-"type":"migration" ... "status":"start" ... "name":"0047"
-"type":"migration" ... "status":"finish" ... "name":"0047"
+"type":"migration" ... "message":"MySQL schema requires 2 updates"
+"type":"migration" ... "status":"start" ... "name":"0049"
+"type":"migration" ... "status":"finish" ... "name":"0049"
+"type":"migration" ... "status":"start" ... "name":"0050"
+"type":"migration" ... "status":"finish" ... "name":"0050"
 "type":"migration" ... "message":"All migrations performed successfully"
 "type":"state-changed" ... "currentState":"available" ... "db":true,"oidc":true
 ```
+
+> **Note:** The count of updates and the migration numbers belong to the release you are installing. STIG Manager 1.6.18 runs two migrations, 0049 and 0050; each one is logged with a start line and a finish line, and the number on the first line must match the number of migrations that follow it. The last line must be “All migrations performed successfully”.
 
 If there is no migration in the release, you will instead see “MySQL schema is up to date” followed by the state-changed line. Either way, the final state must be available with both db and oidc true.
 
