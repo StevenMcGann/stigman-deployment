@@ -113,9 +113,10 @@ $env:MYSQL_PWD = '<mysql-root-password>'
 $env:MYSQL_PWD = $null
 ```
 
-Expected result: the first command prints `1.6.17` and the second prints
-`8.4.13`. STIG Manager 1.6.17 and later requires MySQL 8.4.0 or later and
-will not start on an older release.
+Expected result: the first command prints `1.6.17`, and the second prints a
+MySQL version of 8.4.0 or later (the test server runs 8.4.13). STIG Manager
+1.6.17 and later requires MySQL 8.4.0 or later and will not start on an older
+release.
 
 ### 2. Check that the release publishes the Windows archive
 
@@ -129,8 +130,8 @@ Expected result: `200`.
 
 If the command prints `404`, the release page does not publish the file yet.
 Stop here, and run the command again later. Do not install a different file and
-do not build the application yourself. On the test server this was the state of
-1.6.18 for the whole of 2026-11-03.
+do not build the application yourself. For 1.6.18 the command printed `404`
+each time it was run on 2026-11-03, from 06:30 to 19:16.
 
 ### 3. Back up the database
 
@@ -162,8 +163,11 @@ Expected result: the download completes and the hash is printed. GitHub shows a
 SHA-256 digest beside the file on the release page, and the hash of your
 download must match it exactly (Get-FileHash prints upper case; the comparison
 is not case sensitive). If it does not match, delete the file and download it
-again. On the test server the hash of the file tested was
-`E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`.
+again. The digest on the release page is the one to compare against. The
+archive tested on the test server came from the project's build workflow, not
+from the release page (see "Not verified"), so its hash,
+`E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`, may differ
+from the digest of the published file and is given for reference only.
 
 ### 5. Stop the services
 
@@ -179,13 +183,20 @@ Expected result: both services report `Stopped`.
 
 ### 6. Replace the binary
 
+An earlier update may have left a `stig-manager-win.exe.bak` in the folder. If
+it is there, the rename below fails, the new binary is copied over the current
+one anyway, and the copy kept for the rollback is an older release. The first
+two commands move any such file aside under a dated name.
+
 ```powershell
+$old = 'C:\Services\stig-manager\stig-manager-win.exe.bak'
+if (Test-Path $old) { Rename-Item $old "stig-manager-win.exe.bak-$(Get-Date -Format yyyyMMdd-HHmmss)" }
 Rename-Item C:\Services\stig-manager\stig-manager-win.exe stig-manager-win.exe.bak
 Expand-Archive "C:\Installers\stig-manager-win-$ver.zip" -DestinationPath "C:\Installers\stigman-$ver" -Force
 Copy-Item "C:\Installers\stigman-$ver\stig-manager-win.exe" C:\Services\stig-manager\stig-manager-win.exe
 ```
 
-Expected result: the three commands print nothing. The archive contains
+Expected result: the commands print nothing. The archive contains
 `stig-manager-win.exe` and `stig-manager.bat`; only the executable is copied,
 because the service configuration and the environment stay the same. If the
 archive extracts into a nested folder, point the Copy-Item command at the

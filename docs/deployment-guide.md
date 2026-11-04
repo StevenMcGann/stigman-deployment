@@ -1369,7 +1369,7 @@ $url = "https://github.com/NUWCDIVNPT/stig-manager/releases/download/$ver/stig-m
 curl.exe -sIL -o NUL -w "%{http_code}`n" $url
 ```
 
-> **Note:** Expected result: 200. If it prints 404, the release does not publish the Windows archive yet. Wait and run the command again later; do not install a different file and do not build the application yourself. This was the state of STIG Manager 1.6.18 on 2026-11-03, the day after its release was published: the release page listed no files at all, so the update could not be installed from it.
+> **Note:** Expected result: 200. If it prints 404, the release does not publish the Windows archive yet. Wait and run the command again later; do not install a different file and do not build the application yourself.
 
 When the check prints 200, download the Windows release ZIP for the target version (replace VERSION with the version number, e.g., 1.6.17):
 
@@ -1398,6 +1398,12 @@ Get-Service STIGManagerWatcher, STIGManager | Select-Object Name, Status
 ### Step 16.5: Replace the Binary
 
 Back up the current binary, then extract the new one over it. The service config (stig-manager-svc.xml), WinSW wrapper, and logs are left untouched.
+
+```
+# Move aside a binary kept from an earlier update; otherwise the rename below fails
+$old = 'C:\Services\stig-manager\stig-manager-win.exe.bak'
+if (Test-Path $old) { Rename-Item $old "stig-manager-win.exe.bak-$(Get-Date -Format yyyyMMdd-HHmmss)" }
+```
 
 ```
 # Preserve the old binary in case rollback is needed
