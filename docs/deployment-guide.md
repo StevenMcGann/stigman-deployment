@@ -112,7 +112,7 @@ Download all of the following before starting the installation:
 | Keycloak | 26.8.1 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
 | STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
 | STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
-| Caddy Server | 2.11.8 (ZIP) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
+| Caddy Server | 2.11.9 (ZIP) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
 | WinSW | 2.12.0 (EXE) | github.com/winsw/winsw/releases | Windows service wrapper |
 
 > **Note:** The versions listed are the baseline this guide was written and validated against. Newer patch releases generally work, but follow Section 16 (Applying Updates) when moving to a newer version.
@@ -143,7 +143,7 @@ Copy the following files into C:\Installers:
 - keycloak-26.8.1.zip
 - stig-manager-win-1.6.17.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
-- caddy_2.11.8_windows_amd64.zip (contains caddy.exe; Step 6.1 extracts it)
+- caddy_2.11.9_windows_amd64.zip (contains caddy.exe; Step 6.1 extracts it)
 - WinSW-x64.exe
 - stigman-realm.json (provided with this guide)
 
@@ -572,8 +572,8 @@ Create the Caddy directory, extract the release archive, and copy the executable
 
 ```
 New-Item -ItemType Directory -Path C:\Services\caddy -Force
-Expand-Archive C:\Installers\caddy_2.11.8_windows_amd64.zip -DestinationPath C:\Installers\caddy-2.11.8 -Force
-Copy-Item C:\Installers\caddy-2.11.8\caddy.exe C:\Services\caddy\caddy.exe
+Expand-Archive C:\Installers\caddy_2.11.9_windows_amd64.zip -DestinationPath C:\Installers\caddy-2.11.9 -Force
+Copy-Item C:\Installers\caddy-2.11.9\caddy.exe C:\Services\caddy\caddy.exe
 ```
 
 > **Note:** Caddy's GitHub release is a .zip that contains caddy.exe; there is no separate .exe download there. If you staged a different version, use its file name in the two commands above. The Install-Caddy.ps1 script does the extraction for you; if more than one Caddy archive is in C:\Installers it uses the newest version.
@@ -1606,12 +1606,12 @@ $env:MYSQL_PWD = $null
 
 ### Step 16.10: Updating Caddy
 
-Caddy is a single binary you swap in place, like STIG Manager in Step 16.5. The Caddyfile, TLS material, and branding folder are left untouched, and Caddy has no database, so there is no backup step — the old binary kept beside the new one is the rollback. Caddy 2.11.6 changes two defaults that apply from this version forward and to every request through the proxy — a 16 KiB request-header cap (before, Go's 1 MiB) and an abort of any body read or response write that makes no progress for more than 60 seconds — and it validates Caddyfiles more strictly, so a config that started before may fail to start now. Caddy 2.11.8 adds security fixes to the reverse proxy and rejects a request whose Host header is invalid or made up only of dots (for example "..") with HTTP 400 before any route runs; on the test server such a request answered 200 on 2.11.7 and 400 on 2.11.8. That is why this step has checks a plain binary swap does not. Read the release notes for every version between your current and target release first: https://github.com/caddyserver/caddy/releases
+Caddy is a single binary you swap in place, like STIG Manager in Step 16.5. The Caddyfile, TLS material, and branding folder are left untouched, and Caddy has no database, so there is no backup step — the old binary kept beside the new one is the rollback. Caddy 2.11.6 changes two defaults that apply from this version forward and to every request through the proxy — a 16 KiB request-header cap (before, Go's 1 MiB; in practice a request is refused once its headers total about 20 KiB, because the server allows 4 KiB of slack on top of the limit) and an abort of any body read or response write that makes no progress for more than 60 seconds — and it validates Caddyfiles more strictly, so a config that started before may fail to start now. Caddy 2.11.8 adds security fixes to the reverse proxy and rejects a request whose Host header is invalid or made up only of dots (for example "..") with HTTP 400 before any route runs; on the test server such a request answered 200 on 2.11.7 and 400 on 2.11.8. Caddy 2.11.9 is a follow-up to 2.11.8: it undoes a fault in 2.11.8's handling of PHP directory indexes, fixes several security faults in FastCGI, and reports one more configuration error. This deployment serves no PHP and uses no FastCGI, so none of those changes affect it; the Caddyfile used here validated unchanged under 2.11.9. That is why this step has checks a plain binary swap does not. Read the release notes for every version between your current and target release first: https://github.com/caddyserver/caddy/releases
 
 **1. Download and verify the new binary**
 
 ```
-$ver = '2.11.8'
+$ver = '2.11.9'
 $url = "https://github.com/caddyserver/caddy/releases/download/v$ver/caddy_${ver}_windows_amd64.zip"
 Invoke-WebRequest -Uri $url -OutFile "C:\Installers\caddy_${ver}_windows_amd64.zip"
 (Get-FileHash "C:\Installers\caddy_${ver}_windows_amd64.zip" -Algorithm SHA256).Hash
@@ -1627,7 +1627,7 @@ Expand-Archive "C:\Installers\caddy_${ver}_windows_amd64.zip" -DestinationPath C
 
 **2. Validate the current Caddyfile with the new binary, before swapping**
 
-Stricter validation in 2.11.6, and more of it in 2.11.8, rejects Caddyfile constructs that earlier 2.11 releases silently accepted, so a config that started before can fail to start now. Run the new binary against the live Caddyfile before you replace anything (keep the & and quotes as shown — a command path containing a variable does not expand without them):
+Stricter validation in 2.11.6, and more of it in 2.11.8 and 2.11.9, rejects Caddyfile constructs that earlier 2.11 releases silently accepted, so a config that started before can fail to start now. Run the new binary against the live Caddyfile before you replace anything (keep the & and quotes as shown — a command path containing a variable does not expand without them):
 
 ```
 & "C:\Installers\caddy-$ver\caddy.exe" validate --config C:\Services\caddy\Caddyfile
@@ -1656,7 +1656,7 @@ That endpoint returns 200 only if Caddy is serving TLS and proxying /api/\* to t
 
 **4. Verify the paths the new defaults can break**
 
-- Header cap: log in through the browser at https://YOUR_SERVER_IP/ and confirm the application loads and a collection opens, exactly as Step 16.7 does. A client whose cookies or OIDC tokens push the request headers past 16 KiB now gets 431 Request Header Fields Too Large on every proxied route, so a login that worked before this swap but fails now is the first place to look. If you see 431 responses, raise the cap with the max_header_size server option in the Caddyfile, then reload Caddy (Appendix C). The same login check covers request header fields containing '.' (dropped in 2.11.6 the way underscores were in 2.11.4); if a client relies on one, allow it back with the expected_dot_headers server option.
+- Header cap: log in through the browser at https://YOUR_SERVER_IP/ and confirm the application loads and a collection opens, exactly as Step 16.7 does. Caddy refuses a request whose headers total more than about 20 KiB with 431 Request Header Fields Too Large, before the request reaches any route; this limit arrived with 2.11.6, and before that Go's 1 MiB applied. The STIG Manager application sets a smaller limit of its own: it refuses a request whose headers total more than 16 KiB, so a client whose cookies or OIDC tokens push the request headers past that size is refused with 431 on every proxied route, whichever version of Caddy is installed. A login that worked before this swap and fails after it is the first place to look. If you see 431 responses, compare the size of the request headers with those two limits before changing the Caddyfile: raising Caddy's max_header_size server option lifts only Caddy's limit, and the application's own limit still applies to the proxied routes. The same login check covers request header fields containing '.' (dropped in 2.11.6 the way underscores were in 2.11.4); if a client relies on one, allow it back with the expected_dot_headers server option.
 - Idle timeout: a request body read or response write through Caddy that makes no progress for more than 60 seconds is now aborted (on the test server a stalled upload stayed open past 80 seconds on 2.11.4 and was cut off at 60 seconds with HTTP 499 on 2.11.6). An upload that keeps moving, however slowly, is left alone. This applies to browser traffic, such as a file uploaded in the web UI. It does not apply to the Watcher as this guide installs it: Install-Watcher.ps1 points the Watcher straight at the API on localhost:54000, so its imports do not pass through Caddy. If uploads through the web UI start failing after a pause of about a minute, or if you have pointed a Watcher at the public HTTPS address instead, raise the limits with read_body_idle and write_idle in the timeouts server option, then reload Caddy (Appendix C).
 - Host header: from 2.11.8, a request whose Host header is invalid or made up only of dots (for example "..") is rejected with HTTP 400 before any route runs. Browsers send the address that was typed, so a normal sign-in is unaffected, and the deployment's own address and "localhost" are both served normally. A client or a network scanner that sends a malformed Host header now sees 400 instead of the application.
 
