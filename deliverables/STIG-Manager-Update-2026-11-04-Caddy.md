@@ -16,8 +16,10 @@ Security fixes, in the order they matter here:
 
 - The reverse proxy now strips hop-by-hop headers from interim (1xx) responses
   and from copied response headers in `handle_response`, which completes the fix
-  for CVE-2026-55458. Every request to Keycloak and to the STIG Manager API
-  passes through this proxy.
+  for CVE-2026-55458. Browser and API traffic to Keycloak and STIG Manager
+  passes through this proxy, but the Caddyfile this deployment uses has
+  neither `handle_response` nor `copy_response_headers`, so this fix protects
+  a configuration that adds them later rather than changing behaviour today.
 - A request whose `Host` header contains dot segments or slashes, or which is
   made up only of dots, is now rejected with HTTP 400 before any route runs.
   Such a host could previously escape the intended directory when it was used
