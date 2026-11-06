@@ -109,7 +109,7 @@ Download all of the following before starting the installation:
 |----|----|----|----|
 | MySQL Community Server | 8.4.13 (MSI) | dev.mysql.com/downloads/mysql | Database backend (STIG Manager 1.6.17 and later needs 8.4.0 or later) |
 | Microsoft OpenJDK | 17.0.21.0.2 (ZIP) | learn.microsoft.com/java/openjdk | Java runtime for Keycloak |
-| Keycloak | 26.8.1 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
+| Keycloak | 26.8.2 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
 | STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
 | STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
 | Caddy Server | 2.11.9 (ZIP) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
@@ -140,7 +140,7 @@ Copy the following files into C:\Installers:
 - mysql-8.4.13-winx64.msi
 - microsoft-jdk-17.0.21.0.2-windows-x64.zip
 - microsoft-jdk-17.0.21.0.2-windows-x64.zip.sha256sum.txt
-- keycloak-26.8.1.zip
+- keycloak-26.8.2.zip
 - stig-manager-win-1.6.17.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
 - caddy_2.11.9_windows_amd64.zip (contains caddy.exe; Step 6.1 extracts it)
@@ -169,7 +169,7 @@ After installation, the directory structure will be:
 
 ```
 C:\Services\
-  keycloak-26.8.1\     Keycloak identity provider
+  keycloak-26.8.2\     Keycloak identity provider
   stig-manager\        STIG Manager application
   stigman-watcher\     STIG Manager Watcher (optional)
   caddy\               Caddy reverse proxy
@@ -353,10 +353,10 @@ Extract the Keycloak ZIP to C:\Services:
 
 ```
 cd C:\Installers
-Expand-Archive keycloak-26.8.1.zip -DestinationPath C:\Services
+Expand-Archive keycloak-26.8.2.zip -DestinationPath C:\Services
 ```
 
-This creates C:\Services\keycloak-26.8.1\
+This creates C:\Services\keycloak-26.8.2\
 
 ### Step 4.2: Configure Keycloak
 
@@ -365,10 +365,10 @@ You can either copy the pre-built `keycloak.conf` from the deliverables\service-
 **Option A:** Copy from deliverables (recommended):
 
 ```
-Copy-Item C:\Installers\keycloak.conf C:\Services\keycloak-26.8.1\conf\keycloak.conf
+Copy-Item C:\Installers\keycloak.conf C:\Services\keycloak-26.8.2\conf\keycloak.conf
 ```
 
-**Option B:** Create manually. Edit C:\Services\keycloak-26.8.1\conf\keycloak.conf:
+**Option B:** Create manually. Edit C:\Services\keycloak-26.8.2\conf\keycloak.conf:
 
 ```
 # Database
@@ -409,7 +409,7 @@ $env:KC_BOOTSTRAP_ADMIN_PASSWORD = 'Admin_KC_2026!'
 2. Run the bootstrap-admin command:
 
 ```
-cd C:\Services\keycloak-26.8.1
+cd C:\Services\keycloak-26.8.2
 .\bin\kc.bat bootstrap-admin user --username admin --password:env KC_BOOTSTRAP_ADMIN_PASSWORD
 ```
 
@@ -424,7 +424,7 @@ The realm import creates the STIG Manager OIDC client, required scopes, protocol
 1. Start Keycloak in development mode:
 
 ```
-cd C:\Services\keycloak-26.8.1
+cd C:\Services\keycloak-26.8.2
 .\bin\kc.bat start-dev
 ```
 
@@ -455,6 +455,8 @@ $null = $realmJson | ConvertFrom-Json -ErrorAction Stop
 ```
 
 > **Note:** The web client uses authorization code flow with S256 proof key for code exchange. Its redirect list is restricted to the configured server address, web origins follow that list, and direct access grants are disabled. The separate Watcher service account continues to use client credentials. Existing realms are not changed by the import script; use the dated Keycloak client change record for existing installations.
+
+> **Note:** Keycloak 26.8.2 and later check the audience of an access token before the Admin REST API accepts it. The token in this section comes from the built-in admin-cli client, which Keycloak gives the kc-admin-api client scope automatically in every realm, so these commands work without change. A token from any other client is refused with HTTP 401 unless that client has the same scope. The same release requires permission to manage the realm, not only permission to manage clients, to create or change a protocol mapper. Importing a realm, which creates clients and their protocol mappers, is an action of a realm administrator and is not affected.
 
 ```
 Invoke-WebRequest -Uri 'http://localhost:8080/admin/realms' -Method Post -Headers $headers -Body $realmJson -UseBasicParsing
@@ -507,7 +509,7 @@ Copy-Item C:\Installers\WinSW-x64.exe C:\Services\stig-manager\stig-manager-svc.
 2. Copy WinSW for Keycloak:
 
 ```
-Copy-Item C:\Installers\WinSW-x64.exe C:\Services\keycloak-26.8.1\keycloak-svc.exe
+Copy-Item C:\Installers\WinSW-x64.exe C:\Services\keycloak-26.8.2\keycloak-svc.exe
 ```
 
 > **Note:** WinSW requires the .exe and .xml files to share the same base name in the same directory. For example, stig-manager-svc.exe looks for stig-manager-svc.xml.
@@ -641,7 +643,7 @@ Before registering Keycloak as a service, it must be built for production mode. 
 
 ```
 $env:JAVA_HOME = 'C:\Program Files\Microsoft\jdk-17.0.21.0.2'
-cd C:\Services\keycloak-26.8.1
+cd C:\Services\keycloak-26.8.2
 .\bin\kc.bat build
 ```
 
@@ -651,7 +653,7 @@ Wait for the build to complete. The last message is “Server configuration upda
 
 ### Step 7.2: Create the Keycloak Service Configuration
 
-Copy `keycloak-svc.xml` from deliverables\service-configs, or create it manually at C:\Services\keycloak-26.8.1\keycloak-svc.xml:
+Copy `keycloak-svc.xml` from deliverables\service-configs, or create it manually at C:\Services\keycloak-26.8.2\keycloak-svc.xml:
 
 ```
 <service>
@@ -686,7 +688,7 @@ sc.exe description Caddy 'Caddy reverse proxy for STIG Manager'
 **Keycloak (identity provider):**
 
 ```
-cd C:\Services\keycloak-26.8.1
+cd C:\Services\keycloak-26.8.2
 .\keycloak-svc.exe install
 ```
 
@@ -818,7 +820,7 @@ To make it permanent, rerun the SetEnvironmentVariable command from Section 3.
 Check the WinSW log for errors:
 
 ```
-Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.err.log -Tail 30
+Get-Content C:\Services\keycloak-26.8.2\keycloak-svc.err.log -Tail 30
 ```
 
 Common causes:
@@ -1106,7 +1108,7 @@ stigman.yourdomain.mil, localhost {
 
 **keycloak.conf — The hostname setting**
 
-Path: C:\Services\keycloak-26.8.1\conf\keycloak.conf
+Path: C:\Services\keycloak-26.8.2\conf\keycloak.conf
 
 ```
 hostname=https://stigman.yourdomain.mil
@@ -1139,7 +1141,7 @@ The script updates all three files, rebuilds Keycloak (required when hostname ch
 Keycloak must be rebuilt any time keycloak.conf changes. The configure-hostname.cmd script does this automatically. If you change the hostname manually, run:
 
 ```
-cd C:\Services\keycloak-26.8.1
+cd C:\Services\keycloak-26.8.2
 .\bin\kc.bat build
 ```
 
@@ -1497,7 +1499,9 @@ $env:MYSQL_PWD = $null
 
 Keycloak updates differently from STIG Manager. STIG Manager is a single binary you swap in place; Keycloak is a full distribution installed into a version-named folder (C:\Services\keycloak-\<version>). The supported approach is to install the new version into a new folder, migrate your configuration into it, rebuild, and re-point the Windows service. Keeping the old folder gives you an instant rollback path.
 
-> **Important:** Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Releases within the same major series (for example 26.8.0 to 26.8.1, or 26.7.4 to 26.8.0) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start.
+> **Important:** Use this same install-fresh-and-re-point pattern for any component that lives in a version-named folder. Releases within the same major series (for example 26.8.1 to 26.8.2, or 26.7.4 to 26.8.0) carry no realm export/import work — Keycloak migrates its own internal schema automatically on first start.
+
+Keycloak 26.8.2 is a security release with 34 vulnerability fixes, including a stored cross-site scripting fault on the sign-in page and a session-takeover fault in the logout path. Two of its changes apply to every deployment. The Admin REST API now checks the audience of the access token: Keycloak creates a built-in client scope named kc-admin-api in every realm and adds it as a default scope to the built-in admin-cli and security-admin-console clients, so the admin token used in Section 4.4 and by the scripts in the install folder continues to work, while a token from any other client is refused with HTTP 401 unless that client has the same scope. Creating, changing or removing a protocol mapper on a client now needs permission to manage the realm rather than only permission to manage clients; a realm administrator can allow particular mapper types in the realm settings. Keycloak 26.8.2 changed no table and added no database changeset, so the rollback in this step needs no database restore.
 
 **1. Review the release notes and back up**
 
@@ -1514,7 +1518,7 @@ $env:MYSQL_PWD = $null
 **2. Download and extract the new version**
 
 ```
-$ver = '26.8.1'
+$ver = '26.8.2'
 Invoke-WebRequest -Uri "https://github.com/keycloak/keycloak/releases/download/$ver/keycloak-$ver.zip" -OutFile "C:\Installers\keycloak-$ver.zip"
 (Get-FileHash "C:\Installers\keycloak-$ver.zip" -Algorithm SHA256).Hash
 ```
@@ -1574,7 +1578,7 @@ Start-Service STIGManager
 Start-Service STIGManagerWatcher
 ```
 
-Confirm a clean start in the Keycloak log. Look for “Keycloak \<newver> ... started” and “Profile prod activated”. Some version bumps also log realm migration lines; a patch release may not:
+Confirm a clean start in the Keycloak log. Look for “Keycloak \<newver> ... started” and “Profile prod activated”. Some version bumps also log realm migration lines; 26.8.2 logs “migrated realm stigman to 26.8.2” and “migrated realm master to 26.8.2” on its first start and no migration lines on later starts, because the database has already been migrated:
 
 ```
 Get-Content C:\Services\keycloak-<newver>\keycloak-svc.out.log -Tail 15
@@ -1603,6 +1607,8 @@ $env:MYSQL_PWD = $null
 > **Note:** The rollback above — re-pointing the service only — was run on the test server from 26.8.1 back to 26.8.0, a patch release that made no database schema change: Keycloak 26.8.0 answered within 20 seconds, the stack was healthy, and the database backup from step 1 was not needed. The restore half has since been run too, on 2026-10-16, as described above. A rollback across a release that does change the schema combines the two halves: restore the step-1 backup, re-point the service to the old folder, and only then start the old version — and do not take a clean start of the old version without the restore as proof the rollback is sound.
 
 > **Note:** Keycloak 26.8.0 changes one behaviour that applies from this version forward: brute-force lockout data is now stored in the keycloak database by default instead of in server memory, and the previous in-memory behaviour is only available through the deprecated login-failures:v1 feature switch. The practical difference is that a temporarily locked-out user stays locked out after a Keycloak restart; before 26.8.0 the lockouts were kept in memory and a restart cleared them. The imported realm (stigman-realm.json) has brute-force protection enabled, so failed logins do lock users out. No step in this procedure changes, and the step-1 dump of the keycloak schema already covers the new table. If in-memory behaviour is specifically required, set features=login-failures:v1 in keycloak.conf and rebuild; the switch is deprecated.
+
+> **Note:** The rollback above — re-pointing the service only — was run on the test server on 2026-11-06 with 26.8.2, a release that made no database schema change: the service was pointed back at C:\Services\keycloak-26.8.1, Keycloak 26.8.1 answered OIDC discovery about 15 seconds after Start-Service, the stack was healthy, and the database backup from step 1 was not needed. The old version logged the “Possibly incorrect state of migration” warning shown above and started normally. 26.8.2 was then applied again, and the stack was healthy on it.
 
 ### Step 16.10: Updating Caddy
 
@@ -1864,7 +1870,7 @@ Keycloak is the only component that runs on Java, so a JDK update touches exactl
 The Keycloak service reads its JDK from the env line in keycloak-svc.xml — that file is the source of truth, not the machine-wide JAVA_HOME. Confirm what both say before changing anything:
 
 ```
-$svc = [xml](Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Raw)
+$svc = [xml](Get-Content C:\Services\keycloak-26.8.2\keycloak-svc.xml -Raw)
 ($svc.service.env | Where-Object { $_.name -eq 'JAVA_HOME' }).value
 [System.Environment]::GetEnvironmentVariable('JAVA_HOME','Machine')
 ```
@@ -1928,13 +1934,13 @@ Delete each with the same keytool -delete command, substituting the alias. chang
 
 **5. Re-point the runtime**
 
-JAVA_HOME lives in two places and both must move: the env line in C:\Services\keycloak-26.8.1\keycloak-svc.xml (what the Keycloak service actually runs on) and the machine-wide variable (what a command-line kc.bat build picks up). Back up the service XML, then edit the env line with a plain string replacement:
+JAVA_HOME lives in two places and both must move: the env line in C:\Services\keycloak-26.8.2\keycloak-svc.xml (what the Keycloak service actually runs on) and the machine-wide variable (what a command-line kc.bat build picks up). Back up the service XML, then edit the env line with a plain string replacement:
 
 ```
-Copy-Item C:\Services\keycloak-26.8.1\keycloak-svc.xml C:\Services\keycloak-26.8.1\keycloak-svc.xml.bak
-$xml = Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Raw
+Copy-Item C:\Services\keycloak-26.8.2\keycloak-svc.xml C:\Services\keycloak-26.8.2\keycloak-svc.xml.bak
+$xml = Get-Content C:\Services\keycloak-26.8.2\keycloak-svc.xml -Raw
 $xml = $xml.Replace('jdk-17.0.20.101-hotspot', 'jdk-17.0.21.0.2')
-Set-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Value $xml -Encoding UTF8
+Set-Content C:\Services\keycloak-26.8.2\keycloak-svc.xml -Value $xml -Encoding UTF8
 [System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-17.0.21.0.2', 'Machine')
 ```
 
@@ -1968,7 +1974,7 @@ curl.exe -sk -o NUL -w "%{http_code}" https://localhost/realms/stigman/.well-kno
 Log in through the browser at https://YOUR_SERVER_IP/ and open a collection — this exercises the identity path a person uses, which the curl checks do not. Finally check the Keycloak log for a clean start (the “Installed features” line near the end, and no new ERROR lines):
 
 ```
-Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.out.log -Tail 15
+Get-Content C:\Services\keycloak-26.8.2\keycloak-svc.out.log -Tail 15
 ```
 
 **7. Rollback**
@@ -1976,9 +1982,9 @@ Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.out.log -Tail 15
 If Keycloak misbehaves on the new JDK, put the old one back — both JAVA_HOME places, then the same restart as step 6:
 
 ```
-$xml = Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Raw
+$xml = Get-Content C:\Services\keycloak-26.8.2\keycloak-svc.xml -Raw
 $xml = $xml.Replace('jdk-17.0.21.0.2', 'jdk-17.0.20.101-hotspot')
-Set-Content C:\Services\keycloak-26.8.1\keycloak-svc.xml -Value $xml -Encoding UTF8
+Set-Content C:\Services\keycloak-26.8.2\keycloak-svc.xml -Value $xml -Encoding UTF8
 [System.Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot', 'Machine')
 ```
 
@@ -2105,7 +2111,7 @@ Get-Content C:\Services\stig-manager\stig-manager-svc.out.log -Tail 50
 **View Keycloak logs:**
 
 ```
-Get-Content C:\Services\keycloak-26.8.1\keycloak-svc.out.log -Tail 50
+Get-Content C:\Services\keycloak-26.8.2\keycloak-svc.out.log -Tail 50
 ```
 
 **View Caddy logs (if Caddy fails to start):**
