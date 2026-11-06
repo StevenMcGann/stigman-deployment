@@ -5,7 +5,7 @@ Tested on a test server on 2026-11-06, including the rollback.
 ## Summary
 
 Apply this update. Keycloak 26.8.2, released on 2026-11-05, is a security
-release with 34 vulnerability fixes, including a stored cross-site scripting
+release that fixes 33 vulnerabilities, including a stored cross-site scripting
 fault on the sign-in page and a session-takeover fault in the logout path. It
 requires no configuration changes, and the procedure is the same as for earlier
 Keycloak updates in the 26.x series.
@@ -65,10 +65,10 @@ Changes in behaviour that apply to this deployment:
   HTTP 401 unless that client has the scope as well. On the test server the
   admin token issued by `admin-cli` changed from the scopes "profile email" with
   no audience to the scopes "kc-admin-api profile email" with the audience of
-  this realm's Admin REST API, and every Admin REST API call used by the
-  installation scripts continued to answer HTTP 200 — including the calls that
-  a token from the master realm makes against the `stigman` realm. The scripts
-  in `install\` therefore need no change.
+  this realm's Admin REST API. The token from the master realm, which is the
+  token the installation scripts use, was accepted for both reading and
+  changing the `stigman` realm, and for creating a new realm. The scripts in
+  `install\` therefore need no change.
 - **Protocol mapper management needs permission to manage the realm.** Before
   this release, an administrator who held only "Manage clients" could create,
   change or remove protocol mappers on clients and client scopes, which could
@@ -112,8 +112,8 @@ Changes in behaviour that apply to this deployment:
 
 | Risk | Result on the test server |
 |---|---|
-| The new Admin REST API audience check breaks the installation scripts | It did not. The admin token gained the `kc-admin-api` scope and an audience, and all nine Admin REST API calls that `install\Import-Realm.ps1` and `install\Install-Watcher.ps1` make — including the calls a master-realm token makes against the `stigman` realm — answered HTTP 200 before and after the update. |
-| The new protocol mapper rule breaks a delegated administrator | It does, as intended, and the change was measured on both versions: a user holding only "Manage clients" created a protocol mapper and received HTTP 201 on 26.8.1, and HTTP 403 on 26.8.2. A realm administrator received HTTP 201 on both. Reading protocol mappers was still allowed (HTTP 200) on both. |
+| The new Admin REST API audience check breaks the installation scripts | It did not. The admin token, obtained from the master realm through `admin-cli` as the scripts obtain it, gained the `kc-admin-api` scope and an audience. With that token, the read calls made by `install\Import-Realm.ps1` and `install\Install-Watcher.ps1` (the realm, the Watcher client, its service account, the realm roles and the client secret) answered HTTP 200 before and after the update. On 26.8.2 the same token also created a realm (HTTP 201, the call `Import-Realm.ps1` makes) and assigned the Watcher's realm roles (HTTP 204, the call `Install-Watcher.ps1` makes; the roles were already assigned, so nothing changed). The one call not repeated is the generation of a new Watcher client secret, because it would have replaced the secret in use; it is made with the same token. |
+| The new protocol mapper rule breaks a delegated administrator | It does, as intended, and the change was measured on both versions: a user holding only "Manage clients" created a protocol mapper and received HTTP 201 on 26.8.1, and HTTP 403 on 26.8.2. On 26.8.2 a realm administrator created the same mapper and received HTTP 201. Reading protocol mappers was still allowed (HTTP 200) on both. |
 | The realm import in Section 4.4 no longer works | It works. A realm was created through the same Admin REST API call the script makes, with a client that carries a protocol mapper; the mapper was imported with the realm, and the new realm was given the `kc-admin-api` client scope automatically. The test realm was deleted afterwards. |
 | `kc.bat build` fails because JAVA_HOME names a removed JDK | It did not. The JAVA_HOME was read from the service file, as step 4 does, and the build finished in 20 seconds with "Server configuration updated and persisted". |
 | The first start migrates the database | It did, and it was a data migration only: the log showed "migrated realm stigman to 26.8.2" and "migrated realm master to 26.8.2". The table count stayed at 101 and no new row appeared in `DATABASECHANGELOG`; the only new row was the 26.8.2 entry in `MIGRATION_MODEL`. |
@@ -306,6 +306,11 @@ restore the step 1 backup as part of its rollback.
 - **The stored cross-site scripting fault on the login page (CVE-2026-107889).**
   The fault was not reproduced. The sign-in page was loaded in a browser and
   rendered normally, with no console errors.
+- **Generating a new Watcher client secret on 26.8.2.** This is the one Admin
+  REST API call of `install\Install-Watcher.ps1` that was not repeated,
+  because it replaces the secret in use. It uses the same token as the calls
+  that were tested, and the script makes it only when the secret is still the
+  shipped default.
 - **The session takeover through an injected `id_token_hint` (CVE-2026-107124).**
   The attack was not reproduced. The logout path was tested for correct
   behaviour, not against the attack. The session notes that this release adds
