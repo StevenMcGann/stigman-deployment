@@ -173,6 +173,7 @@ const doc = new Document({
       }),
       blank(),
       note("The versions listed are the baseline this guide was written and validated against. Newer patch releases generally work, but follow Section 16 (Applying Updates) when moving to a newer version."),
+      note("As of 2026-11-07, STIG Manager 1.6.18 is published, but its release page lists no files, so the archive for that version cannot be downloaded and a new installation uses 1.6.17. Check the release page before you start. If it now lists stig-manager-win-1.6.18.zip, install that file instead; the update record deliverables\\STIG-Manager-Update-2026-11-03-STIGManager.md describes what 1.6.18 changes, including the two database migrations that the application runs by itself the first time it starts."),
       note("For STIG Manager and the Watcher, download the Windows standalone binary (stig-manager-win-x.x.x.zip / stigman-watcher-win-x.x.x.zip) from the GitHub Releases pages. For Caddy, download the Windows amd64 binary from the GitHub Releases page for the version above (the caddyserver.com download page only serves the newest build). For WinSW, download WinSW-x64.exe."),
       blank(),
 

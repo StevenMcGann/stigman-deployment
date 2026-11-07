@@ -7,8 +7,9 @@ Tested on a test server on 2026-11-03, including the rollback.
 Apply this update at the next maintenance window, but only after the release
 page publishes the Windows archive. STIG Manager 1.6.18 was published on
 2026-11-02, and on 2026-11-03 its release page listed no files at all: only the
-automatic source code archives. The check in step 2 of this record says when the
-file is there. Do not install the application from any other source.
+automatic source code archives. The same was true on 2026-11-07. The check in
+step 2 of this record says when the file is there. Do not install the
+application from any other source.
 
 Plan for about five minutes of downtime. The STIG Manager and Watcher services
 are stopped while the binary is replaced, so users cannot sign in during that
@@ -131,7 +132,8 @@ Expected result: `200`.
 If the command prints `404`, the release page does not publish the file yet.
 Stop here, and run the command again later. Do not install a different file and
 do not build the application yourself. For 1.6.18 the command printed `404`
-each time it was run on 2026-11-03, from 06:30 to 19:16.
+each time it was run on 2026-11-03, from 06:30 to 19:16, and it printed `404`
+again on 2026-11-07 at 06:36.
 
 ### 3. Back up the database
 
@@ -165,9 +167,13 @@ download must match it exactly (Get-FileHash prints upper case; the comparison
 is not case sensitive). If it does not match, delete the file and download it
 again. The digest on the release page is the one to compare against. The
 archive tested on the test server came from the project's build workflow, not
-from the release page (see "Not verified"), so its hash,
-`E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`, may differ
-from the digest of the published file and is given for reference only.
+from the release page (see "Not verified"). On 2026-11-07 that archive was
+downloaded again from the same build workflow and was byte-for-byte the same
+file, with the same SHA-256
+`E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`, and its
+detached signature verified as a good signature from the project's key. If the
+release page publishes that same file, the digest shown there will match this
+hash.
 
 ### 5. Stop the services
 
@@ -297,13 +303,16 @@ afterwards.
 
 ## Not verified
 
-- The official release archive. On 2026-11-03 the release page for 1.6.18
-  published no files, so the binary tested on the test server was the archive
-  built by the upstream project's own build workflow for the same release tag,
-  taken from the files that workflow published. Its detached signature verified
-  against the project's public key. The release archive must still be
-  downloaded from the release page, and its hash checked against the digest
-  shown there.
+- The official release archive. On 2026-11-03, and again on 2026-11-07, the
+  release page for 1.6.18 published no files, so the binary tested on the test
+  server was the archive built by the upstream project's own build workflow for
+  the same release tag, taken from the files that workflow published. Its
+  detached signature verified against the project's public key, and on
+  2026-11-07 the same archive was downloaded again and was byte-for-byte
+  identical, with the SHA-256
+  `E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`. The
+  release archive must still be downloaded from the release page, and its hash
+  checked against the digest shown there.
 - A sign-in by a person with their own account. The browser sign-in was made
   with the test account.
 - The review aging task acting on a collection. The test deployment had no
