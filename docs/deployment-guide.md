@@ -117,7 +117,9 @@ Download all of the following before starting the installation:
 
 > **Note:** The versions listed are the baseline this guide was written and validated against. Newer patch releases generally work, but follow Section 16 (Applying Updates) when moving to a newer version.
 
-> **Note:** As of 2026-11-07, STIG Manager 1.6.18 is published, but its release page lists no files, so the archive for that version cannot be downloaded and a new installation uses 1.6.17. Check the release page before you start. If it now lists stig-manager-win-1.6.18.zip, install that file instead; the update record deliverables\STIG-Manager-Update-2026-11-03-STIGManager.md describes what 1.6.18 changes, including the two database migrations that the application runs by itself the first time it starts.
+> **Note:** As of 2026-11-08, STIG Manager 1.6.18 is published, but its release page lists no files, so the archive for that version cannot be downloaded and a new installation uses 1.6.17. The page was checked twice on 2026-11-08 and still listed only the automatic source code archives. Check the release page before you start. If it now lists stig-manager-win-1.6.18.zip, install that file instead; the update record deliverables\STIG-Manager-Update-2026-11-03-STIGManager.md describes what 1.6.18 changes, including the two database migrations that the application runs by itself the first time it starts.
+
+> **Note:** Known issue in STIG Manager 1.6.18 and 1.6.17: when a person signs out of the web client, the session at the identity provider is not ended. Other tabs of the application stay signed in, and a new tab on the same address opens the application without asking for the password. The sign-out button leads to a Keycloak page that asks “Do you want to log out?”; clicking its Logout button does end the session. Until a release with the fix is available, tell users to click that Logout button, or to sign out of Keycloak itself. The fix was confirmed on the test server on 2026-11-08 and is expected in the next STIG Manager release; the update record dated 2026-11-03 describes the check to run when it arrives.
 
 > **Note:** For STIG Manager and the Watcher, download the Windows standalone binary (stig-manager-win-x.x.x.zip / stigman-watcher-win-x.x.x.zip) from the GitHub Releases pages. For Caddy, download the Windows amd64 binary from the GitHub Releases page for the version above (the caddyserver.com download page only serves the newest build). For WinSW, download WinSW-x64.exe.
 
@@ -1458,6 +1460,13 @@ Confirm the API now reports the new version:
 ```
 
 Then log in through the browser at https://YOUR_SERVER_IP/ and confirm the application loads and a collection opens without errors.
+
+If the release notes for the version you are installing mention a change to sign-out or to session handling, check that signing out really ends the session. This takes a minute and needs only the browser. Sign in at https://YOUR_SERVER_IP/, open a second tab on the same address, then use the application’s sign-out in the first tab. After signing out:
+
+- the second tab must show the sign-in page, not the application;
+- a third tab must show the sign-in page and ask for the password; if it opens the application without the password, the session at the identity provider is still alive.
+
+> **Note:** Do not treat a failure of this check as a fault in the update. STIG Manager 1.6.18 and earlier leave the identity provider session alive when a person signs out, so this check fails on those versions even when the update is sound. The behaviour was fixed upstream after 1.6.18; it was confirmed on the test server on 2026-11-08 that a build carrying the fix ends the session in every tab. Record the result either way, and report a failure on a version later than 1.6.18.
 
 Once the API is confirmed healthy, restart the Watcher (if installed) and confirm it reconnects:
 
