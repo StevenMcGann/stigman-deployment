@@ -2,7 +2,7 @@
 
 Tested on a test server on 2026-11-03, including the rollback. A known issue
 with signing out was measured on the test server on 2026-11-08 and is described
-under "Known issue: signing out does not end the session".
+under "Known issue: signing out needs a second click".
 
 ## Summary
 
@@ -81,35 +81,40 @@ switch them back on.
 | Exports fail | The checklist export returned 157,269 bytes and the benchmark export returned 274,489 bytes, both valid ZIP archives. |
 | The new API parameters do not work | A checklist request with `labelId` naming a label that does not exist returned HTTP 200 and an empty array; `labelMatch=null` returned HTTP 200 with all 278 rules of the STIG; `labelName` containing `&`, `?` and `#` returned HTTP 200 with an empty array. On version 1.6.17 the same requests were refused with HTTP 400 and the message "Unknown query parameter". |
 | The update cannot be rolled back | The rollback below was run in full. Version 1.6.17 started on the restored database, logged "MySQL schema is up to date", and the stack was healthy. The update was then applied a second time with the same results. |
-| Signing out ends the session | This fails on 1.6.18, and it is a fault in the application rather than in the update. See "Known issue: signing out does not end the session" below. |
+| Signing out ends the session | On 1.6.18 the sign-out stops at a Keycloak confirmation page and the session ends only when the person clicks Logout on it. This is a behaviour of the application, not a fault in the update. See "Known issue: signing out needs a second click" below. |
 
-## Known issue: signing out does not end the session
+## Known issue: signing out needs a second click
 
 Measured on the test server on 2026-11-08, on the running 1.6.18 build.
 
-When a person signs out of the STIG Manager web client, the session is not
-ended. The other tabs of the application stay signed in, and a new tab on the
-same address opens the application without asking for the password. The
-identity provider session therefore stays alive after the person believes they
-have signed out. This affects 1.6.18 and earlier versions; it is not caused by
-the update, and it is not a fault in the deployment.
+When a person uses the sign-out in the STIG Manager web client, the
+application opens a Keycloak page headed "Logging out" that asks "Do you want
+to log out?". The session at the identity provider ends only when the person
+clicks Logout on that page. Until then, and for good if the person closes the
+page or moves away from it:
 
-What the person sees is a Keycloak page headed "Logging out" that asks "Do you
-want to log out?". Clicking the Logout button on that page does end the
-session, and a new tab then asks for the password.
+- the other tabs of the application stay signed in;
+- a new tab on the same address opens the application without asking for the
+  password.
 
-Until a STIG Manager release with the fix is available:
+When Logout on that page was clicked, a new tab asked for the password, so the
+session had ended. Whether tabs that were already open stop working at once
+after that click was not measured.
 
-- Tell users to click the Logout button on the Keycloak page that the
-  application's sign-out leads to, or to sign out of Keycloak itself. Either
-  ends the session.
-- Do not rely on the application's sign-out alone on shared workstations.
+Version 1.6.17 uses the same sign-out code, so it behaves the same way. The
+behaviour is not caused by the update and is not a fault in the deployment.
 
-The fix was confirmed on the test server on 2026-11-08: a build of the
-development branch that carries it ended the session in every tab and at the
-identity provider. It is expected in the next STIG Manager release. When that
-release is installed, run the check in step 8 below to confirm the behaviour has
-changed.
+Until a STIG Manager release with the fix is available, tell users to click
+Logout on the "Logging out" page every time they sign out, particularly on
+shared workstations.
+
+A change made upstream after 1.6.18 ends the session without the confirmation
+page. It was tested on the test server on 2026-11-08 on a build of the
+upstream development branch, which is not a release: the sign-out went
+straight to the sign-in page, the other tab lost its sign-in, and a new tab
+asked for the password. The change is expected in the next STIG Manager
+release. When that release is installed, run the check in step 8 below to
+confirm the behaviour has changed.
 
 ## Before you start
 
@@ -283,11 +288,14 @@ service account.
 If the release notes for the version you are installing mention a change to
 sign-out or to session handling, check that signing out really ends the
 session. Sign in at the address your users use, open a second tab on the same
-address, and use the application's sign-out in the first tab. After signing
-out, the second tab must show the sign-in page rather than the application, and
-a third tab must ask for the password instead of opening the application
-without it. On 1.6.18 and earlier this check fails; that is the known issue
-described above, not a fault in the update. Record the result either way.
+address, and use the application's sign-out in the first tab. If a Keycloak
+page headed "Logging out" asks "Do you want to log out?", do not click anything
+on it yet. Check that the second tab shows the sign-in page rather than the
+application, and that a third tab asks for the password instead of opening the
+application without it. Then return to the first tab and, if the "Logging out"
+page is still shown, click Logout on it. On 1.6.18 and 1.6.17 this check fails;
+that is the known issue described above, not a fault in the update. Record the
+result either way.
 
 ### 9. Review the review aging rules
 
