@@ -510,6 +510,7 @@ const doc = new Document({
       p("Create the temp folder named by TEMP and TMP (either option above needs it):"),
       code("New-Item -ItemType Directory -Path C:\\Services\\stig-manager\\temp -Force"),
       important("Do not leave out TEMP and TMP. Each time STIG Manager starts it unpacks its web client into its temp folder, and for a service that folder is otherwise C:\\Windows\\Temp. Windows Disk Cleanup deletes files there that are more than 7 days old, so about a week after each restart the web page stops loading while the API keeps working. A folder under C:\\Services is not cleaned. See Section 9 if this has already happened."),
+      note("The application does not remove the folder it unpacked on an earlier start, so this temp folder grows by about 2 MB every time the service starts. On a server that is restarted often it reaches tens of megabytes over a year. The old folders can be deleted while the service is stopped; Step 16.7 gives the commands."),
       pb(),
 
       // ══════════════════════════════════════════════════
@@ -1227,7 +1228,17 @@ const doc = new Document({
       code("Get-Content C:\\Services\\stigman-watcher\\stigman-watcher-svc.out.log -Tail 10"),
       p("Look for “preflight api requests succeeded” in the Watcher log, which confirms it re-authenticated against the upgraded API. The Watcher takes several seconds to write it, so the lines must be new: check their timestamps (times in the log are UTC) and that remoteApiVersion shows the version you just installed. The lines from the previous start look the same apart from the version. Finally, verify the full service set:"),
       code("Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status"),
-      p("Once everything is verified, you can delete the .bak binary and the temporary extraction folder."),
+      p("Once everything is verified, you can delete the .bak binary and the temporary extraction folder under C:\\Installers."),
+      blank(),
+      p("The service's own temp folder, C:\\Services\\stig-manager\\temp, is worth a look at the same time. STIG Manager unpacks its web client into a new folder there at every start and never removes the older ones, so the folder grows by about 2 MB with each restart. The old folders can be deleted while the service is stopped, because the application unpacks a fresh one when it next starts. This was done on the test server on 2026-11-08: 39 folders and 72 MB were removed, the service started cleanly, the web page and the API answered 200, the Watcher reconnected, and a browser sign-in worked."),
+      code("Stop-Service STIGManagerWatcher"),
+      code("Stop-Service STIGManager"),
+      code("Remove-Item C:\\Services\\stig-manager\\temp\\pkg-* -Recurse -Force"),
+      code("Start-Service STIGManager"),
+      code("Start-Sleep -Seconds 20"),
+      code("curl.exe -sk -o NUL -w \"%{http_code}\" https://localhost/    # must print 200"),
+      code("Start-Service STIGManagerWatcher"),
+      note("Delete these folders only while the service is stopped. The folder the service is currently using must not be deleted while it is running: that is what leaves the web page hanging while the API keeps working, which Section 9 describes."),
       blank(),
 
       h2("Step 16.8: Rollback (If Needed)"),

@@ -568,6 +568,8 @@ New-Item -ItemType Directory -Path C:\Services\stig-manager\temp -Force
 
 > **Important:** Do not leave out TEMP and TMP. Each time STIG Manager starts it unpacks its web client into its temp folder, and for a service that folder is otherwise C:\Windows\Temp. Windows Disk Cleanup deletes files there that are more than 7 days old, so about a week after each restart the web page stops loading while the API keeps working. A folder under C:\Services is not cleaned. See Section 9 if this has already happened.
 
+> **Note:** The application does not remove the folder it unpacked on an earlier start, so this temp folder grows by about 2 MB every time the service starts. On a server that is restarted often it reaches tens of megabytes over a year. The old folders can be deleted while the service is stopped; Step 16.7 gives the commands.
+
 ## 6. Install and Configure Caddy (Reverse Proxy)
 
 Caddy serves as the front door to your deployment. It handles HTTPS/TLS encryption and routes traffic to the correct backend service (STIG Manager or Keycloak).
@@ -1482,7 +1484,21 @@ Look for “preflight api requests succeeded” in the Watcher log, which confir
 Get-Service MySQL84, Keycloak, STIGManager, Caddy, STIGManagerWatcher | Format-Table Name, Status
 ```
 
-Once everything is verified, you can delete the .bak binary and the temporary extraction folder.
+Once everything is verified, you can delete the .bak binary and the temporary extraction folder under C:\Installers.
+
+The service's own temp folder, C:\Services\stig-manager\temp, is worth a look at the same time. STIG Manager unpacks its web client into a new folder there at every start and never removes the older ones, so the folder grows by about 2 MB with each restart. The old folders can be deleted while the service is stopped, because the application unpacks a fresh one when it next starts. This was done on the test server on 2026-11-08: 39 folders and 72 MB were removed, the service started cleanly, the web page and the API answered 200, the Watcher reconnected, and a browser sign-in worked.
+
+```
+Stop-Service STIGManagerWatcher
+Stop-Service STIGManager
+Remove-Item C:\Services\stig-manager\temp\pkg-* -Recurse -Force
+Start-Service STIGManager
+Start-Sleep -Seconds 20
+curl.exe -sk -o NUL -w "%{http_code}" https://localhost/    # must print 200
+Start-Service STIGManagerWatcher
+```
+
+> **Note:** Delete these folders only while the service is stopped. The folder the service is currently using must not be deleted while it is running: that is what leaves the web page hanging while the API keeps working, which Section 9 describes.
 
 ### Step 16.8: Rollback (If Needed)
 
