@@ -9,8 +9,9 @@ under "Known issue: signing out needs a second click".
 Apply this update at the next maintenance window, but only after the release
 page publishes the Windows archive. STIG Manager 1.6.18 was published on
 2026-11-02, and on 2026-11-03 its release page listed no files at all: only the
-automatic source code archives. The same was true on 2026-11-07. The check in
-step 2 of this record says when the file is there. Do not install the
+automatic source code archives. The same was true on 2026-11-07, on 2026-11-08
+and on 2026-11-09. The check in step 2 of this record says when the file is
+there. Do not install the
 application from any other source.
 
 Plan for about five minutes of downtime. The STIG Manager and Watcher services
@@ -169,7 +170,7 @@ If the command prints `404`, the release page does not publish the file yet.
 Stop here, and run the command again later. Do not install a different file and
 do not build the application yourself. For 1.6.18 the command printed `404`
 each time it was run on 2026-11-03, from 06:30 to 19:16, and it printed `404`
-again on 2026-11-07 at 06:36.
+again on 2026-11-07 at 06:36, on 2026-11-08 and on 2026-11-09.
 
 ### 3. Back up the database
 
@@ -351,8 +352,9 @@ afterwards.
 
 ## Not verified
 
-- The official release archive. On 2026-11-03, and again on 2026-11-07, the
-  release page for 1.6.18 published no files, so the binary tested on the test
+- The official release archive. On 2026-11-03, and again on 2026-11-07,
+  2026-11-08 and 2026-11-09, the release page for 1.6.18 published no files, so
+  the binary tested on the test
   server was the archive built by the upstream project's own build workflow for
   the same release tag, taken from the files that workflow published. Its
   detached signature verified against the project's public key, and on
