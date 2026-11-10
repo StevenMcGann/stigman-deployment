@@ -2,17 +2,17 @@
 
 Tested on a test server on 2026-11-03, including the rollback. A known issue
 with signing out was measured on the test server on 2026-11-08 and is described
-under "Known issue: signing out needs a second click".
+under "Known issue: signing out needs a second click". The release page
+published the Windows archive on 2026-11-10; the published file was downloaded
+and checked against the tested binary on that day.
 
 ## Summary
 
-Apply this update at the next maintenance window, but only after the release
-page publishes the Windows archive. STIG Manager 1.6.18 was published on
-2026-11-02, and on 2026-11-03 its release page listed no files at all: only the
-automatic source code archives. The same was true on 2026-11-07, on 2026-11-08
-and on 2026-11-09. The check in step 2 of this record says when the file is
-there. Do not install the
-application from any other source.
+Apply this update at the next maintenance window. STIG Manager 1.6.18 was
+published on 2026-11-02. Its release page listed no files at all until
+2026-11-10, when the Windows archive was published. The check in step 2 of this
+record confirms that the file is there. Do not install the application from any
+other source.
 
 Plan for about five minutes of downtime. The STIG Manager and Watcher services
 are stopped while the binary is replaced, so users cannot sign in during that
@@ -83,6 +83,7 @@ switch them back on.
 | The new API parameters do not work | A checklist request with `labelId` naming a label that does not exist returned HTTP 200 and an empty array; `labelMatch=null` returned HTTP 200 with all 278 rules of the STIG; `labelName` containing `&`, `?` and `#` returned HTTP 200 with an empty array. On version 1.6.17 the same requests were refused with HTTP 400 and the message "Unknown query parameter". |
 | The update cannot be rolled back | The rollback below was run in full. Version 1.6.17 started on the restored database, logged "MySQL schema is up to date", and the stack was healthy. The update was then applied a second time with the same results. |
 | Signing out ends the session | On 1.6.18 the sign-out stops at a Keycloak confirmation page and the session ends only when the person clicks Logout on it. This is a behaviour of the application, not a fault in the update. See "Known issue: signing out needs a second click" below. |
+| The published release archive is not the binary that was tested | The file published on the release page on 2026-11-10 was downloaded and its SHA-256 matched the digest GitHub shows beside it. The executable inside it has the same SHA-256 as the executable running on the test server, and the published detached signature verified as a good signature from the project's key. |
 
 ## Known issue: signing out needs a second click
 
@@ -119,9 +120,10 @@ confirm the behaviour has changed.
 
 ## Before you start
 
-- **The release must publish the Windows archive.** On 2026-11-03 the release
-  page for 1.6.18 listed no files, so the update could not be installed from
-  it. Step 2 below checks this and says what to do.
+- **The release must publish the Windows archive.** The release page for
+  1.6.18 listed no files until 2026-11-10, when it published the Windows
+  archive. Step 2 below checks this and says what to do if the file is not
+  there.
 - **Maintenance window.** Allow about five minutes.
 - **MySQL root password.** Two steps need it. Type it where a command shows
   `<mysql-root-password>`, and do not save it in a file or script. Each command
@@ -170,7 +172,8 @@ If the command prints `404`, the release page does not publish the file yet.
 Stop here, and run the command again later. Do not install a different file and
 do not build the application yourself. For 1.6.18 the command printed `404`
 each time it was run on 2026-11-03, from 06:30 to 19:16, and it printed `404`
-again on 2026-11-07 at 06:36, on 2026-11-08 and on 2026-11-09.
+again on 2026-11-07 at 06:36, on 2026-11-08 and on 2026-11-09. It printed
+`200` on 2026-11-10, when the release page published the file.
 
 ### 3. Back up the database
 
@@ -202,15 +205,16 @@ Expected result: the download completes and the hash is printed. GitHub shows a
 SHA-256 digest beside the file on the release page, and the hash of your
 download must match it exactly (Get-FileHash prints upper case; the comparison
 is not case sensitive). If it does not match, delete the file and download it
-again. The digest on the release page is the one to compare against. The
-archive tested on the test server came from the project's build workflow, not
-from the release page (see "Not verified"). On 2026-11-07 that archive was
-downloaded again from the same build workflow and was byte-for-byte the same
-file, with the same SHA-256
-`E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`, and its
-detached signature verified as a good signature from the project's key. If the
-release page publishes that same file, the digest shown there will match this
-hash.
+again. The digest on the release page is the one to compare against. For
+1.6.18 that digest is
+`E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`. It is
+the hash of the file published on the release page and of the archive from the
+project's build workflow that was tested on the test server; the two files are
+byte-for-byte the same, and the executable inside them has the SHA-256
+`147BE74C0FCF7410A76C02BDC7C49468AD5293258E3F9B13B45DD0A62BCF762D` in both.
+The release page also publishes the detached signature
+`stig-manager-win-1.6.18.zip.asc`, which verified as a good signature from the
+project's key when the published file was checked on 2026-11-10.
 
 ### 5. Stop the services
 
@@ -352,17 +356,15 @@ afterwards.
 
 ## Not verified
 
-- The official release archive. On 2026-11-03, and again on 2026-11-07,
-  2026-11-08 and 2026-11-09, the release page for 1.6.18 published no files, so
-  the binary tested on the test
-  server was the archive built by the upstream project's own build workflow for
-  the same release tag, taken from the files that workflow published. Its
-  detached signature verified against the project's public key, and on
-  2026-11-07 the same archive was downloaded again and was byte-for-byte
-  identical, with the SHA-256
-  `E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91`. The
-  release archive must still be downloaded from the release page, and its hash
-  checked against the digest shown there.
+- A fresh installation of 1.6.18 on an empty database. The update path from
+  1.6.17 was tested in full, including the two migrations; a new installation
+  was not run on the test server. The installer scripts were run on
+  2026-11-10 against a scratch directory, where they extracted the published
+  archive and wrote the service configuration, but the application was not
+  started against an empty database. Both migrations are safe on an empty
+  database: 0049 recreates the review aging stored procedure, and 0050 resets
+  review aging rules whose interval is below one hour, of which a new database
+  has none.
 - A sign-in by a person with their own account. The browser sign-in was made
   with the test account.
 - The review aging task acting on a collection. The test deployment had no

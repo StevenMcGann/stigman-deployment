@@ -4,7 +4,7 @@
 
 *Step-by-Step Deployment and Hardening Instructions*  
 
-*Version 1.6.17  —  September 2026*  
+*Version 1.6.18  —  November 2026*  
 
 ## Table of Contents
 
@@ -110,14 +110,14 @@ Download all of the following before starting the installation:
 | MySQL Community Server | 8.4.13 (MSI) | dev.mysql.com/downloads/mysql | Database backend (STIG Manager 1.6.17 and later needs 8.4.0 or later) |
 | Microsoft OpenJDK | 17.0.21.0.2 (ZIP) | learn.microsoft.com/java/openjdk | Java runtime for Keycloak |
 | Keycloak | 26.8.2 (ZIP) | keycloak.org/downloads | Identity/auth provider (OIDC) |
-| STIG Manager | 1.6.17 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
+| STIG Manager | 1.6.18 (ZIP) | github.com/NUWCDIVNPT/stig-manager | The application |
 | STIG Manager Watcher | 1.6.9 (ZIP) | github.com/NUWCDIVNPT/stigman-watcher | Automated file import (optional, Section 10) |
 | Caddy Server | 2.11.9 (ZIP) | github.com/caddyserver/caddy/releases | Reverse proxy with auto-TLS |
 | WinSW | 2.12.0 (EXE) | github.com/winsw/winsw/releases | Windows service wrapper |
 
 > **Note:** The versions listed are the baseline this guide was written and validated against. Newer patch releases generally work, but follow Section 16 (Applying Updates) when moving to a newer version.
 
-> **Note:** As of 2026-11-09, STIG Manager 1.6.18 is published, but its release page lists no files, so the archive for that version cannot be downloaded and a new installation uses 1.6.17. The page was checked twice on 2026-11-08 and again on 2026-11-09, and still listed only the automatic source code archives. Check the release page before you start. If it now lists stig-manager-win-1.6.18.zip, install that file instead; the update record deliverables\STIG-Manager-Update-2026-11-03-STIGManager.md describes what 1.6.18 changes, including the two database migrations that the application runs by itself the first time it starts.
+> **Note:** STIG Manager 1.6.18 is the version this guide installs. Its release page publishes the Windows archive stig-manager-win-1.6.18.zip, 72,819,503 bytes. The copy downloaded on 2026-11-10 had SHA-256 E86E84DDC691AA7221862CD0C576B443179398CFE5BFAEC8E6161238D4503A91, which is the digest GitHub shows beside the file, and its detached signature verified as a good signature from the project's key. The page listed no files at all from 2026-11-03 to 2026-11-09 and published them on 2026-11-10, so an earlier copy of this guide may say that the archive cannot be downloaded yet. A release can be published before its files are attached: if the download address returns 404, stop, check the release page again later, and do not install a different file. The update record deliverables\STIG-Manager-Update-2026-11-03-STIGManager.md describes what 1.6.18 changes, including the two database migrations that the application runs by itself the first time it starts.
 
 > **Note:** Known issue in STIG Manager 1.6.18 and 1.6.17: the web client's sign-out does not end the session by itself. It opens a Keycloak page headed “Logging out” that asks “Do you want to log out?”, and the session at the identity provider ends only when the person clicks Logout on that page. A person who closes that page or moves away from it is still signed in: a new tab on the same address opens the application without asking for the password, and the other tabs of the application remain signed in. Tell users to click Logout on that page every time they sign out, particularly on shared workstations. This was measured on the test server on 2026-11-08 on 1.6.18; 1.6.17 uses the same sign-out code. A change made upstream after 1.6.18 ends the session without the confirmation page and is expected in the next STIG Manager release; Step 16.7 gives the check to run when it arrives.
 
@@ -145,7 +145,7 @@ Copy the following files into C:\Installers:
 - microsoft-jdk-17.0.21.0.2-windows-x64.zip
 - microsoft-jdk-17.0.21.0.2-windows-x64.zip.sha256sum.txt
 - keycloak-26.8.2.zip
-- stig-manager-win-1.6.17.zip
+- stig-manager-win-1.6.18.zip
 - stigman-watcher-win-1.6.9.zip (optional, Section 10)
 - caddy_2.11.9_windows_amd64.zip (contains caddy.exe; Step 6.1 extracts it)
 - WinSW-x64.exe
@@ -210,6 +210,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Install-All.ps1
 ```
 
 The installer performs Sections 2 through 7 in order and is safe to re-run (each step skips work already done). When it finishes, continue at Section 8 (Verify the Installation).
+
+> **Note:** The version numbers in install\stigman-config.ps1 are the versions the installer looks for, so they must match the files you staged in Section 1. Leave them as they are unless you are installing different versions. If the installer stops with "zip not found", the file named in the configuration is not in C:\Installers under that name.
 
 > **Note:** Prefer to go step by step? Each phase also has its own script in the install\ folder (Initialize-MySql.ps1, Create-Databases.ps1, Install-Java.ps1, Install-Keycloak.ps1, Install-StigManager.ps1, Install-Caddy.ps1, Register-Services.ps1, Import-Realm.ps1). Run them in that order, each as shown in Step 2.
 
@@ -489,7 +491,7 @@ Create the directory and extract:
 ```
 New-Item -ItemType Directory -Path C:\Services\stig-manager -Force
 cd C:\Installers
-Expand-Archive stig-manager-win-1.6.17.zip -DestinationPath C:\Services\stig-manager
+Expand-Archive stig-manager-win-1.6.18.zip -DestinationPath C:\Services\stig-manager
 ```
 
 Verify the executable was extracted:
@@ -498,7 +500,7 @@ Verify the executable was extracted:
 Test-Path C:\Services\stig-manager\stig-manager-win.exe
 ```
 
-> **Note:** If the ZIP contains a nested folder (e.g., stig-manager-win-1.6.17\), move the contents up one level so that stig-manager-win.exe is directly in C:\Services\stig-manager\.
+> **Note:** If the ZIP contains a nested folder (e.g., stig-manager-win-1.6.18\), move the contents up one level so that stig-manager-win.exe is directly in C:\Services\stig-manager\.
 
 ### Step 5.2: Set Up WinSW Service Wrapper
 
@@ -758,7 +760,7 @@ $api = Invoke-RestMethod -Uri 'http://localhost:54000/api/op/definition'
 Write-Host "STIG Manager version: $($api.info.version)"
 ```
 
-You should see: STIG Manager version: 1.6.17
+You should see: STIG Manager version: 1.6.18
 
 Also verify Keycloak is serving the STIG Manager realm:
 
@@ -1372,14 +1374,14 @@ Write-Host "Backup written to $dump"
 First check that the release page publishes the Windows archive. A release can be announced before its files are attached: the Assets section of the release page then lists only “Source code (zip)” and “Source code (tar.gz)”, and the download address below returns 404. This command asks for the archive itself and prints the HTTP status:
 
 ```
-$ver = '1.6.17'
+$ver = '1.6.18'
 $url = "https://github.com/NUWCDIVNPT/stig-manager/releases/download/$ver/stig-manager-win-$ver.zip"
 curl.exe -sIL -o NUL -w "%{http_code}`n" $url
 ```
 
-> **Note:** Expected result: 200. If it prints 404, the release does not publish the Windows archive yet. Wait and run the command again later; do not install a different file and do not build the application yourself.
+> **Note:** Expected result: 200. If it prints 404, the release does not publish the Windows archive yet. Wait and run the command again later; do not install a different file and do not build the application yourself. For 1.6.18 the command printed 200 on 2026-11-10; the release page had published no files until that day.
 
-When the check prints 200, download the Windows release ZIP for the target version (replace VERSION with the version number, e.g., 1.6.17):
+When the check prints 200, download the Windows release ZIP for the target version (replace VERSION with the version number, e.g., 1.6.18):
 
 ```
 Invoke-WebRequest -Uri $url -OutFile "C:\Installers\stig-manager-win-$ver.zip"

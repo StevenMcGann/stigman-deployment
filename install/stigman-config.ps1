@@ -25,8 +25,8 @@ $InstallersDir = 'C:\Installers'   # where you copied the downloaded files (Sect
 $ServicesDir   = 'C:\Services'     # install root for all components
 
 # ---- Versions (match the files you downloaded in Section 1) -----
-$KeycloakVersion = '26.8.1'
-$StigmanVersion  = '1.6.17'
+$KeycloakVersion = '26.8.2'
+$StigmanVersion  = '1.6.18'
 
 # ---- Tool locations (defaults match the guide) -----------------
 $JdkHome  = 'C:\Program Files\Microsoft\jdk-17.0.21.0.2'
